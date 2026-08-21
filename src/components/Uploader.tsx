@@ -1,0 +1,251 @@
+import React, { useRef, useState, useEffect } from 'react';
+import { UploadCloud, Image as ImageIcon, Sparkles, Plus } from 'lucide-react';
+import { PhotoItem, ShapeType } from '../types';
+import { readFileAsDataURL, getImageDimensions, calculateCrop } from '../utils/imageUtils';
+
+interface UploaderProps {
+  onAddPhotos: (newPhotos: PhotoItem[]) => void;
+  onToast: (type: 'success' | 'error' | 'info', text: string) => void;
+  defaultSize: { width: number; height: number; shape: ShapeType };
+  smartCrop: boolean;
+}
+
+export const Uploader: React.FC<UploaderProps> = ({
+  onAddPhotos,
+  onToast,
+  defaultSize,
+  smartCrop,
+}) => {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const processFiles = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList).filter((f) =>
+      f.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|avif|jfif|bmp|gif|svg)$/i.test(f.name)
+    );
+
+    if (files.length === 0) {
+      onToast('error', 'Vui lòng chọn tệp hình ảnh hợp lệ (JPG, PNG, WebP, v.v.)');
+      return;
+    }
+
+    setIsProcessing(true);
+    const addedPhotos: PhotoItem[] = [];
+
+    try {
+      for (const file of files) {
+        try {
+          const dataUrl = await readFileAsDataURL(file);
+          const dims = await getImageDimensions(dataUrl);
+          const crop = calculateCrop(dims.width, dims.height, defaultSize.width, defaultSize.height, smartCrop);
+
+          addedPhotos.push({
+            id: 'photo_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now(),
+            name: file.name || 'Ảnh tải lên',
+            originalSrc: dataUrl,
+            imgWidth: dims.width,
+            imgHeight: dims.height,
+            targetWidth: defaultSize.width,
+            targetHeight: defaultSize.height,
+            shape: defaultSize.shape,
+            qty: 1,
+            scale: 1,
+            cropX: crop.cropX,
+            cropY: crop.cropY,
+            cropW: crop.cropW,
+            cropH: crop.cropH,
+            rotation: 0,
+          });
+        } catch (err) {
+          console.error('Error processing single image:', err);
+        }
+      }
+
+      if (addedPhotos.length > 0) {
+        onAddPhotos(addedPhotos);
+        onToast('success', `Đã tải lên thành công ${addedPhotos.length} ảnh!`);
+      } else {
+        onToast('error', 'Không thể đọc nội dung file ảnh.');
+      }
+    } catch (e) {
+      console.error('Error in batch upload:', e);
+      onToast('error', 'Có lỗi xảy ra khi tải ảnh lên.');
+    } finally {
+      setIsProcessing(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Clipboard Paste Support (Ctrl+V / Cmd+V)
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!e.clipboardData) return;
+      const items = e.clipboardData.items;
+      const imageFiles: File[] = [];
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile();
+          if (blob) {
+            imageFiles.push(new File([blob], `paste_${Date.now()}.png`, { type: blob.type }));
+          }
+        }
+      }
+
+      if (imageFiles.length > 0) {
+        processFiles(imageFiles);
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [defaultSize, smartCrop]);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFiles(e.dataTransfer.files);
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      processFiles(e.target.files);
+    }
+  };
+
+  const loadSamplePhotos = async () => {
+    setIsProcessing(true);
+    const sampleUrls = [
+      {
+        name: 'Chân dung 1.jpg',
+        url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80',
+      },
+      {
+        name: 'Phong cảnh 2.jpg',
+        url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=80',
+      },
+      {
+        name: 'Thú cưng 3.jpg',
+        url: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=800&auto=format&fit=crop&q=80',
+      },
+    ];
+
+    try {
+      const addedPhotos: PhotoItem[] = [];
+      for (const sample of sampleUrls) {
+        const dims = await getImageDimensions(sample.url);
+        const crop = calculateCrop(dims.width, dims.height, defaultSize.width, defaultSize.height, smartCrop);
+        addedPhotos.push({
+          id: 'sample_' + Math.random().toString(36).substring(2, 9),
+          name: sample.name,
+          originalSrc: sample.url,
+          imgWidth: dims.width,
+          imgHeight: dims.height,
+          targetWidth: defaultSize.width,
+          targetHeight: defaultSize.height,
+          shape: defaultSize.shape,
+          qty: 1,
+          scale: 1,
+          cropX: crop.cropX,
+          cropY: crop.cropY,
+          cropW: crop.cropW,
+          cropH: crop.cropH,
+          rotation: 0,
+        });
+      }
+      onAddPhotos(addedPhotos);
+      onToast('success', 'Đã nạp 3 ảnh mẫu để thử nghiệm!');
+    } catch (e) {
+      console.error(e);
+      onToast('error', 'Không thể tải ảnh mẫu.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div id="uploader-section" className="space-y-2">
+      {/* Hidden File Input */}
+      <input
+        ref={fileInputRef}
+        id="file-upload-input"
+        type="file"
+        multiple
+        accept="image/*"
+        onChange={handleFileInputChange}
+        className="hidden"
+      />
+
+      {/* Main Upload Dropzone */}
+      <div
+        id="drop-zone-container"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
+        className={`relative border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all duration-200 group select-none ${
+          isDragging
+            ? 'border-blue-500 bg-blue-50 ring-4 ring-blue-100 scale-[0.99]'
+            : 'border-blue-200 bg-blue-50/40 hover:bg-blue-50/80 hover:border-blue-400'
+        }`}
+      >
+        <div className="w-11 h-11 mx-auto bg-white rounded-xl shadow-sm border border-blue-100 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+          {isProcessing ? (
+            <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <UploadCloud className="w-5 h-5 text-blue-600 group-hover:text-blue-700" />
+          )}
+        </div>
+
+        <div className="text-[13px] font-bold text-gray-800 mb-0.5">
+          {isProcessing ? 'Đang nạp ảnh...' : 'Kéo thả hoặc Nhấp để chọn ảnh'}
+        </div>
+        <p className="text-[11px] text-gray-500">
+          Hỗ trợ JPG, PNG, WebP • Dán <kbd className="px-1.5 py-0.5 bg-white border rounded text-[10px] font-mono text-gray-700 shadow-xs">Ctrl+V</kbd>
+        </p>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            fileInputRef.current?.click();
+          }}
+          className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-xs transition active:scale-95"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>Chọn tệp từ máy</span>
+        </button>
+      </div>
+
+      {/* Quick Sample Button */}
+      <button
+        type="button"
+        id="btn-load-sample"
+        onClick={loadSamplePhotos}
+        disabled={isProcessing}
+        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-[11px] font-medium text-gray-600 hover:text-blue-600 transition shadow-2xs"
+      >
+        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+        <span>Thử ngay với ảnh mẫu có sẵn</span>
+      </button>
+    </div>
+  );
+};
