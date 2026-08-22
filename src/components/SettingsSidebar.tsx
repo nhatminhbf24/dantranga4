@@ -151,31 +151,11 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
             </div>
           </div>
 
-          {/* Cut lines Toggle */}
-          <label className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100/80 transition select-none">
-            <div className="flex items-center gap-2">
-              <Scissors className="w-4 h-4 text-slate-600" />
-              <div>
-                <span className="text-xs font-semibold text-slate-800 block">Viền cắt (Cut lines)</span>
-                <span className="text-[10px] text-slate-500">Đường đứt nét dễ rọc giấy</span>
-              </div>
-            </div>
-            <input
-              type="checkbox"
-              checked={settings.cutLines}
-              onChange={(e) => onUpdateSettings({ cutLines: e.target.checked })}
-              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-            />
-          </label>
-
-          {/* Auto Nesting / Best-Fit Toggle */}
+          {/* 1. Tối ưu ghép khít */}
           <label className="flex items-center justify-between p-2.5 bg-emerald-50/60 rounded-lg border border-emerald-200 cursor-pointer hover:bg-emerald-50 transition select-none">
             <div className="flex items-center gap-2">
               <LayoutGrid className="w-4 h-4 text-emerald-600" />
-              <div>
-                <span className="text-xs font-semibold text-emerald-900 block">Tối ưu ghép khít (Auto Nesting)</span>
-                <span className="text-[10px] text-emerald-700">Ghép khít khoảng trống, giữ nguyên kích cỡ</span>
-              </div>
+              <span className="text-xs font-semibold text-emerald-900">Tối ưu ghép khít</span>
             </div>
             <input
               type="checkbox"
@@ -185,14 +165,25 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
             />
           </label>
 
-          {/* Smart Crop Toggle */}
+          {/* 2. Nét đứt dọc giấy */}
+          <label className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100/80 transition select-none">
+            <div className="flex items-center gap-2">
+              <Scissors className="w-4 h-4 text-slate-600" />
+              <span className="text-xs font-semibold text-slate-800">Nét đứt dọc giấy</span>
+            </div>
+            <input
+              type="checkbox"
+              checked={settings.cutLines}
+              onChange={(e) => onUpdateSettings({ cutLines: e.target.checked })}
+              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+            />
+          </label>
+
+          {/* 3. Trong tâm khuôn mặt */}
           <label className="flex items-center justify-between p-2.5 bg-purple-50/60 rounded-lg border border-purple-100 cursor-pointer hover:bg-purple-50 transition select-none">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-purple-600" />
-              <div>
-                <span className="text-xs font-semibold text-purple-900 block">Smart Portrait Crop</span>
-                <span className="text-[10px] text-purple-600">Tối ưu trọng tâm khuôn mặt 1/3</span>
-              </div>
+              <span className="text-xs font-semibold text-purple-900">Trong tâm khuôn mặt</span>
             </div>
             <input
               type="checkbox"

@@ -66,28 +66,7 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
     renderedHeight: number;
   } | null>(null);
 
-  // 1. Prevent background page scroll chaining when zooming inside preview
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      // If Ctrl key or Meta key is pressed over container, zoom in/out instead of scrolling
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        setZoom((prev) => {
-          const delta = e.deltaY < 0 ? 5 : -5;
-          return Math.max(30, Math.min(150, prev + delta));
-        });
-      }
-    };
-
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
-  }, []);
-
-  // 2. Drag & Drop Reorder Handlers (HTML5 Drag & Drop)
+  // 1. Drag & Drop Reorder Handlers (HTML5 Drag & Drop)
   const handleDragStart = (e: React.DragEvent, item: PlacedPhotoItem) => {
     e.stopPropagation();
     setDraggedPhotoId(item.id);
@@ -202,43 +181,11 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
     window.addEventListener('mouseup', handleMouseUp);
   };
 
-  const handlePhotoWheel = (e: React.WheelEvent, photo: PhotoItem) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const zoomDelta = e.deltaY < 0 ? 0.1 : -0.1;
-    const oldScale = photo.scale || 1;
-    const newScale = Math.max(1, Math.min(4, oldScale + zoomDelta));
-
-    if (newScale !== oldScale) {
-      const oldActualW = photo.cropW / oldScale;
-      const oldActualH = photo.cropH / oldScale;
-      const centerX = photo.cropX + oldActualW / 2;
-      const centerY = photo.cropY + oldActualH / 2;
-
-      const newActualW = photo.cropW / newScale;
-      const newActualH = photo.cropH / newScale;
-
-      let newCropX = centerX - newActualW / 2;
-      let newCropY = centerY - newActualH / 2;
-
-      newCropX = Math.max(0, Math.min(newCropX, photo.imgWidth - newActualW));
-      newCropY = Math.max(0, Math.min(newCropY, photo.imgHeight - newActualH));
-
-      onUpdatePhoto(photo.id, {
-        scale: newScale,
-        cropX: newCropX,
-        cropY: newCropY,
-      });
-    }
-  };
-
   return (
     <div
       id="preview-area"
       ref={containerRef}
-      className="flex-1 flex flex-col items-center bg-slate-200/80 overflow-y-auto h-full relative overscroll-contain"
-      style={{ overscrollBehavior: 'contain' }}
+      className="flex-1 flex flex-col items-center bg-slate-200/80 overflow-y-auto h-full relative"
     >
       {/* Top Floating Control Bar */}
       <div
@@ -399,9 +346,8 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
                       onDrop={(e) => handleDrop(e, item)}
                       onDragEnd={handleDragEnd}
                       onMouseDown={(e) => handlePhotoMouseDown(e, item)}
-                      onWheel={(e) => handlePhotoWheel(e, item)}
                       onDoubleClick={() => onOpenCropModal(item)}
-                      title="Kéo thả để đổi vị trí ảnh • Kéo chuột trên ảnh để dịch tâm • Cuộn chuột để zoom • Nhấp đúp để chỉnh chi tiết"
+                      title="Kéo thả để đổi vị trí ảnh • Kéo chuột trên ảnh để dịch tâm • Nhấp đúp để chỉnh chi tiết"
                       style={{
                         position: 'absolute',
                         left: `${item.x}mm`,

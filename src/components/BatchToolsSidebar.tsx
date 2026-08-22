@@ -30,7 +30,7 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
 }) => {
   const [batchPresetId, setBatchPresetId] = useState<string>('60x90_rect');
   const [batchQuantity, setBatchQuantity] = useState<number>(1);
-  const [enhanceStrength, setEnhanceStrength] = useState<number>(65);
+  const [enhanceStrength, setEnhanceStrength] = useState<number>(50);
   const [isEnhancingAll, setIsEnhancingAll] = useState<boolean>(false);
   const [isRevertingAll, setIsRevertingAll] = useState<boolean>(false);
 

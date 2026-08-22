@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { UploadCloud, Image as ImageIcon, Sparkles, Plus } from 'lucide-react';
 import { PhotoItem, ShapeType } from '../types';
 import { readFileAsDataURL, getImageDimensions, calculateCrop } from '../utils/imageUtils';
+import { findClosestPreset } from '../utils/presetMatcher';
 
 interface UploaderProps {
   onAddPhotos: (newPhotos: PhotoItem[]) => void;
@@ -38,7 +39,13 @@ export const Uploader: React.FC<UploaderProps> = ({
         try {
           const dataUrl = await readFileAsDataURL(file);
           const dims = await getImageDimensions(dataUrl);
-          const crop = calculateCrop(dims.width, dims.height, defaultSize.width, defaultSize.height, smartCrop);
+          // Auto choose closest preset from the system template library
+          const matchedPreset = findClosestPreset(dims.width, dims.height);
+          const targetW = matchedPreset.width;
+          const targetH = matchedPreset.height;
+          const targetShape = matchedPreset.shape;
+
+          const crop = calculateCrop(dims.width, dims.height, targetW, targetH, smartCrop);
 
           addedPhotos.push({
             id: 'photo_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now(),
@@ -46,9 +53,9 @@ export const Uploader: React.FC<UploaderProps> = ({
             originalSrc: dataUrl,
             imgWidth: dims.width,
             imgHeight: dims.height,
-            targetWidth: defaultSize.width,
-            targetHeight: defaultSize.height,
-            shape: defaultSize.shape,
+            targetWidth: targetW,
+            targetHeight: targetH,
+            shape: targetShape,
             qty: 1,
             scale: 1,
             cropX: crop.cropX,
@@ -64,7 +71,7 @@ export const Uploader: React.FC<UploaderProps> = ({
 
       if (addedPhotos.length > 0) {
         onAddPhotos(addedPhotos);
-        onToast('success', `Đã tải lên thành công ${addedPhotos.length} ảnh!`);
+        onToast('success', `Đã nạp ${addedPhotos.length} ảnh và tự động chọn mẫu kích thước phù hợp nhất!`);
       } else {
         onToast('error', 'Không thể đọc nội dung file ảnh.');
       }
@@ -152,16 +159,21 @@ export const Uploader: React.FC<UploaderProps> = ({
       const addedPhotos: PhotoItem[] = [];
       for (const sample of sampleUrls) {
         const dims = await getImageDimensions(sample.url);
-        const crop = calculateCrop(dims.width, dims.height, defaultSize.width, defaultSize.height, smartCrop);
+        const matchedPreset = findClosestPreset(dims.width, dims.height);
+        const targetW = matchedPreset.width;
+        const targetH = matchedPreset.height;
+        const targetShape = matchedPreset.shape;
+
+        const crop = calculateCrop(dims.width, dims.height, targetW, targetH, smartCrop);
         addedPhotos.push({
           id: 'sample_' + Math.random().toString(36).substring(2, 9),
           name: sample.name,
           originalSrc: sample.url,
           imgWidth: dims.width,
           imgHeight: dims.height,
-          targetWidth: defaultSize.width,
-          targetHeight: defaultSize.height,
-          shape: defaultSize.shape,
+          targetWidth: targetW,
+          targetHeight: targetH,
+          shape: targetShape,
           qty: 1,
           scale: 1,
           cropX: crop.cropX,
@@ -172,7 +184,7 @@ export const Uploader: React.FC<UploaderProps> = ({
         });
       }
       onAddPhotos(addedPhotos);
-      onToast('success', 'Đã nạp 3 ảnh mẫu để thử nghiệm!');
+      onToast('success', 'Đã nạp 3 ảnh mẫu và tự động chọn mẫu kích thước phù hợp nhất!');
     } catch (e) {
       console.error(e);
       onToast('error', 'Không thể tải ảnh mẫu.');
