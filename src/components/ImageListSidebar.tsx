@@ -256,7 +256,6 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
                   <div className="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border border-slate-100">
                     {/* Quantity Stepper */}
                     <div className="flex items-center gap-1">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase px-1">SL:</span>
                       <button
                         type="button"
                         onClick={() => onUpdatePhoto(photo.id, { qty: Math.max(1, (photo.qty || 1) - 1) })}
@@ -272,7 +271,7 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
                         onChange={(e) =>
                           onUpdatePhoto(photo.id, { qty: Math.max(1, parseInt(e.target.value) || 1) })
                         }
-                        className="w-9 h-6 text-center text-xs font-bold bg-white border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-400"
+                        className="w-8 h-6 text-center text-xs font-bold bg-white border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <button
                         type="button"

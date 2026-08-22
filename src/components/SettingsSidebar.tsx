@@ -49,13 +49,15 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
       className="no-print w-80 shrink-0 flex flex-col bg-white border-r border-slate-200 h-full overflow-hidden z-20 shadow-xs"
     >
       {/* Brand Header */}
-      <div className="p-4 border-b border-slate-100 bg-white sticky top-0 z-20 flex items-center gap-3">
-        <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 p-2.5 rounded-xl text-white shadow-sm shadow-blue-500/20">
+      <div className="px-3.5 py-3 border-b border-pink-100 bg-white sticky top-0 z-20 flex items-center gap-2.5">
+        <div className="bg-gradient-to-tr from-pink-600 to-rose-600 p-2.5 rounded-xl text-white shadow-sm shadow-pink-500/20 shrink-0">
           <Printer className="w-5 h-5" />
         </div>
-        <div>
-          <h1 className="text-sm font-bold text-slate-900 leading-none mb-1">AutoPack Print</h1>
-          <p className="text-[11px] text-slate-500 font-medium">Dàn trang in ảnh A4 thông minh</p>
+        <div className="flex-1 min-w-0 pr-0.5">
+          <h1 className="text-[16px] font-black text-pink-700 leading-snug tracking-tight whitespace-nowrap">
+            Dâu Dâu AutoPack Print
+          </h1>
+          <p className="text-[11px] text-pink-600/85 font-semibold">Dàn trang in ảnh A4 thông minh</p>
         </div>
       </div>
 

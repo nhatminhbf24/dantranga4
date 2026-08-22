@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   Sparkles,
   RotateCw,
+  RotateCcw,
   Copy,
   Check,
   Undo2,
@@ -35,6 +36,7 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
   const [isEnhancingAll, setIsEnhancingAll] = useState<boolean>(false);
   const [isRevertingAll, setIsRevertingAll] = useState<boolean>(false);
   const [isAutoAdjustingAll, setIsAutoAdjustingAll] = useState<boolean>(false);
+  const [isRevertingColorsAll, setIsRevertingColorsAll] = useState<boolean>(false);
 
   // Group presets by category
   const categories = Array.from(new Set(DEFAULT_SIZE_PRESETS.map((p) => p.category)));
@@ -68,6 +70,28 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
 
     setIsAutoAdjustingAll(false);
     onToast('success', `Đã tự động cân chỉnh màu sắc cho ${count} ảnh!`);
+  };
+
+  // Batch Revert Colors to Original (Khôi phục màu gốc TẤT CẢ)
+  const handleRevertColorsAll = async () => {
+    if (photos.length === 0 || isRevertingColorsAll) {
+      if (photos.length === 0) onToast('error', 'Chưa có ảnh nào để khôi phục!');
+      return;
+    }
+    setIsRevertingColorsAll(true);
+
+    let count = 0;
+    for (const photo of photos) {
+      const originalSource = photo.rawOriginalSrc || photo.originalSrc;
+      onUpdatePhoto(photo.id, {
+        originalSrc: originalSource,
+        adjustments: { ...DEFAULT_ADJUSTMENTS },
+      });
+      count++;
+    }
+
+    setIsRevertingColorsAll(false);
+    onToast('success', `Đã khôi phục màu gốc cho ${count} ảnh!`);
   };
 
   // 1. Batch Size Preset Change
@@ -369,7 +393,7 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
         </div>
 
         {/* CỤM 3: TỰ ĐỘNG CÂN CHỈNH MÀU SẮC & ÁNH SÁNG */}
-        <div className="bg-white rounded-xl p-3.5 border border-purple-200/90 shadow-2xs space-y-2.5 transition hover:border-purple-300">
+        <div className="bg-white rounded-xl p-3.5 border border-purple-200/90 shadow-2xs space-y-2 transition hover:border-purple-300">
           <button
             type="button"
             id="btn-auto-adjust-all"
@@ -389,9 +413,18 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
               </>
             )}
           </button>
-          <p className="text-[10px] text-slate-500 text-center leading-relaxed">
-            Tự động tối ưu cân bằng trắng, tương phản & độ rực màu in chuẩn cho toàn bộ ảnh.
-          </p>
+
+          {/* Nút: Khôi phục màu gốc TẤT CẢ */}
+          <button
+            type="button"
+            id="btn-revert-colors-all"
+            onClick={handleRevertColorsAll}
+            disabled={isRevertingColorsAll || photos.length === 0}
+            className="w-full flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 transition active:scale-95 cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+            <span>Khôi phục màu gốc TẤT CẢ</span>
+          </button>
         </div>
 
         {/* CỤM 4: CHẤT LƯỢNG & ĐỘ NÉT (LÀM NÉT & PHỤC HỒI) */}
