@@ -2,19 +2,14 @@ import React, { useState } from 'react';
 import {
   Trash2,
   RotateCw,
-  Copy,
+  Crop,
   Layers,
   Image as ImageIcon,
-  Check,
-  Crop,
-  SlidersHorizontal,
-  ChevronDown,
   Sparkles,
   Undo2,
   Loader2,
-  Zap,
 } from 'lucide-react';
-import { PhotoItem, ShapeType, DEFAULT_SIZE_PRESETS, SizePreset } from '../types';
+import { PhotoItem, DEFAULT_SIZE_PRESETS } from '../types';
 import { rotateImageBase64, calculateCrop } from '../utils/imageUtils';
 import { enhanceImageQuality, calculatePrintDPI } from '../utils/imageEnhancer';
 
@@ -37,79 +32,11 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
   onToast,
   smartCrop,
 }) => {
-  const [batchPresetId, setBatchPresetId] = useState<string>('60x90_rect');
-  const [batchQuantity, setBatchQuantity] = useState<number>(1);
-  const [enhanceStrength, setEnhanceStrength] = useState<number>(50);
-  const [isEnhancingAll, setIsEnhancingAll] = useState<boolean>(false);
   const [enhancingId, setEnhancingId] = useState<string | null>(null);
 
   const totalCopies = photos.reduce((acc, p) => acc + (p.qty || 1), 0);
 
-  const handleApplyPresetToAll = () => {
-    const preset = DEFAULT_SIZE_PRESETS.find((p) => p.id === batchPresetId);
-    if (!preset) return;
-
-    photos.forEach((photo) => {
-      const crop = calculateCrop(photo.imgWidth, photo.imgHeight, preset.width, preset.height, smartCrop);
-      onUpdatePhoto(photo.id, {
-        targetWidth: preset.width,
-        targetHeight: preset.height,
-        shape: preset.shape,
-        cropX: crop.cropX,
-        cropY: crop.cropY,
-        cropW: crop.cropW,
-        cropH: crop.cropH,
-        scale: 1,
-      });
-    });
-
-    onToast('success', `Đã đổi tất cả sang: ${preset.label}`);
-  };
-
-  const handleApplyQuantityToAll = (qtyToApply?: number) => {
-    const targetQty = Math.max(1, qtyToApply !== undefined ? qtyToApply : batchQuantity);
-    photos.forEach((photo) => {
-      onUpdatePhoto(photo.id, { qty: targetQty });
-    });
-    onToast('success', `Đã đặt số lượng tất cả ảnh thành ${targetQty} bản`);
-  };
-
-  const handleAdjustQuantityAll = (delta: number) => {
-    photos.forEach((photo) => {
-      const newQty = Math.max(1, (photo.qty || 1) + delta);
-      onUpdatePhoto(photo.id, { qty: newQty });
-    });
-    onToast('info', `Đã ${delta > 0 ? 'tăng' : 'giảm'} 1 bản in cho tất cả ảnh`);
-  };
-
-  const handleRotateAll = async () => {
-    if (photos.length === 0) return;
-    onToast('info', 'Đang xoay toàn bộ ảnh 90°...');
-
-    for (const photo of photos) {
-      const rotatedSrc = await rotateImageBase64(photo.originalSrc, 90);
-      const rawRotated = photo.rawOriginalSrc ? await rotateImageBase64(photo.rawOriginalSrc, 90) : undefined;
-      const newWidth = photo.imgHeight;
-      const newHeight = photo.imgWidth;
-      const crop = calculateCrop(newWidth, newHeight, photo.targetWidth, photo.targetHeight, smartCrop);
-
-      onUpdatePhoto(photo.id, {
-        originalSrc: rotatedSrc,
-        rawOriginalSrc: rawRotated,
-        imgWidth: newWidth,
-        imgHeight: newHeight,
-        cropX: crop.cropX,
-        cropY: crop.cropY,
-        cropW: crop.cropW,
-        cropH: crop.cropH,
-        scale: 1,
-      });
-    }
-
-    onToast('success', 'Đã xoay tất cả ảnh thành công!');
-  };
-
-  // Enhance single image
+  // Enhance / Revert single image
   const handleEnhanceSingle = async (photo: PhotoItem) => {
     if (enhancingId) return;
     setEnhancingId(photo.id);
@@ -123,13 +50,11 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
         });
         onToast('info', 'Đã khôi phục ảnh gốc ban đầu');
       } else {
-        // Apply Smart Sharpness & Contrast Recovery based on enhanceStrength
+        // Apply Smart Sharpness & Contrast Recovery
         const sourceForEnhancing = photo.rawOriginalSrc || photo.originalSrc;
-        const sharpenVal = (enhanceStrength / 100) * 0.8 + 0.1;
-        const contrastVal = (enhanceStrength / 100) * 0.16 + 0.04;
         const result = await enhanceImageQuality(sourceForEnhancing, {
-          sharpenAmount: sharpenVal,
-          contrastAmount: contrastVal,
+          sharpenAmount: 0.55,
+          contrastAmount: 0.12,
           brightnessAmount: 0.04,
           vibranceAmount: 0.18,
         });
@@ -139,7 +64,7 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
           rawOriginalSrc: sourceForEnhancing,
           isEnhanced: true,
         });
-        onToast('success', `Đã làm nét (${enhanceStrength}%) ảnh: ${photo.name}`);
+        onToast('success', `Đã làm nét & tăng chất lượng ảnh: ${photo.name}`);
       }
     } catch (err) {
       console.error(err);
@@ -147,41 +72,6 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
     } finally {
       setEnhancingId(null);
     }
-  };
-
-  // Enhance all photos batch
-  const handleEnhanceAll = async () => {
-    if (photos.length === 0 || isEnhancingAll) return;
-    setIsEnhancingAll(true);
-    onToast('info', `Đang phục hồi độ nét (${enhanceStrength}%) cho ${photos.length} ảnh...`);
-
-    const sharpenVal = (enhanceStrength / 100) * 0.8 + 0.1;
-    const contrastVal = (enhanceStrength / 100) * 0.16 + 0.04;
-
-    let successCount = 0;
-    for (const photo of photos) {
-      try {
-        const sourceForEnhancing = photo.rawOriginalSrc || photo.originalSrc;
-        const result = await enhanceImageQuality(sourceForEnhancing, {
-          sharpenAmount: sharpenVal,
-          contrastAmount: contrastVal,
-          brightnessAmount: 0.04,
-          vibranceAmount: 0.18,
-        });
-
-        onUpdatePhoto(photo.id, {
-          originalSrc: result.enhancedSrc,
-          rawOriginalSrc: sourceForEnhancing,
-          isEnhanced: true,
-        });
-        successCount++;
-      } catch (e) {
-        console.error('Enhance batch error for photo', photo.id, e);
-      }
-    }
-
-    setIsEnhancingAll(false);
-    onToast('success', `Đã nâng cao chất lượng (${enhanceStrength}%) cho ${successCount} ảnh!`);
   };
 
   const handleRotateSingle = async (photo: PhotoItem) => {
@@ -248,7 +138,7 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
             id="btn-clear-all"
             type="button"
             onClick={onClearAll}
-            className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded transition"
+            className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded transition cursor-pointer"
           >
             Xóa hết
           </button>
@@ -257,210 +147,16 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
 
       {/* Sidebar Content */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        {/* Batch Tools Box */}
-        {photos.length > 0 && (
-          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-3.5">
-            {/* Batch Size Sync */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">
-                  Đồng bộ kích thước:
-                </label>
-              </div>
-
-              <select
-                value={batchPresetId}
-                onChange={(e) => setBatchPresetId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
-              >
-                {categories.map((cat) => (
-                  <optgroup key={cat} label={cat}>
-                    {DEFAULT_SIZE_PRESETS.filter((p) => p.category === cat).map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-
-              <button
-                type="button"
-                id="btn-apply-size-all"
-                onClick={handleApplyPresetToAll}
-                className="w-full flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-xs transition active:scale-95"
-              >
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Áp dụng kích thước cho tất cả</span>
-              </button>
-            </div>
-
-            <div className="border-t border-slate-100" />
-
-            {/* Batch Quantity Sync */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">
-                  Số lượng in hàng loạt:
-                </label>
-              </div>
-
-              {/* Stepper + Input + Apply Button */}
-              <div className="flex items-center gap-1.5">
-                <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => setBatchQuantity((q) => Math.max(1, q - 1))}
-                    className="w-6 h-6 flex items-center justify-center rounded bg-white text-slate-700 font-bold hover:bg-slate-50 transition shadow-2xs text-xs"
-                  >
-                    -
-                  </button>
-                  <input
-                    type="number"
-                    min="1"
-                    max="99"
-                    value={batchQuantity}
-                    onChange={(e) => setBatchQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-10 text-center text-xs font-bold text-slate-800 bg-transparent outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setBatchQuantity((q) => q + 1)}
-                    className="w-6 h-6 flex items-center justify-center rounded bg-white text-slate-700 font-bold hover:bg-slate-50 transition shadow-2xs text-xs"
-                  >
-                    +
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  id="btn-apply-qty-all"
-                  onClick={() => handleApplyQuantityToAll()}
-                  className="flex-1 flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-xs transition active:scale-95 whitespace-nowrap"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Áp dụng SL tất cả</span>
-                </button>
-              </div>
-
-              {/* Quick Preset Pills */}
-              <div className="flex items-center gap-1 pt-0.5">
-                <span className="text-[10px] text-slate-400 font-semibold uppercase pr-0.5">Nhanh:</span>
-                {[1, 2, 3, 4, 5].map((num) => (
-                  <button
-                    key={num}
-                    type="button"
-                    onClick={() => {
-                      setBatchQuantity(num);
-                      handleApplyQuantityToAll(num);
-                    }}
-                    className={`flex-1 py-1 rounded-md text-[11px] font-bold border transition active:scale-95 ${
-                      batchQuantity === num
-                        ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                        : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    {num}
-                  </button>
-                ))}
-              </div>
-
-              {/* Incremental Adjustment Buttons (+1 all / -1 all) */}
-              <div className="grid grid-cols-2 gap-1.5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => handleAdjustQuantityAll(-1)}
-                  className="flex items-center justify-center gap-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 py-1 rounded-md text-[11px] font-semibold transition active:scale-95"
-                >
-                  <span>-1 tất cả ảnh</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAdjustQuantityAll(1)}
-                  className="flex items-center justify-center gap-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 py-1 rounded-md text-[11px] font-semibold transition active:scale-95"
-                >
-                  <span>+1 tất cả ảnh</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="border-t border-slate-100" />
-
-            {/* Smart Quality & Sharpness Enhancement Batch */}
-            <div className="space-y-2">
-              <button
-                type="button"
-                id="btn-enhance-all-hd"
-                onClick={handleEnhanceAll}
-                disabled={isEnhancingAll}
-                className="w-full flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:opacity-50 text-white px-3 py-2 rounded-lg text-xs font-bold shadow-xs transition active:scale-95"
-              >
-                {isEnhancingAll ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span>Đang làm nét {photos.length} ảnh...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 text-amber-200" />
-                    <span>Làm nét & Tăng chất lượng TẤT CẢ</span>
-                  </>
-                )}
-              </button>
-
-              {/* Sharpness & Quality Intensity Slider */}
-              <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-2 space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
-                  <span className="flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-amber-500" />
-                    <span>Mức độ làm nét:</span>
-                  </span>
-                  <span className="font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-[10px]">
-                    {enhanceStrength}%
-                  </span>
-                </div>
-
-                <input
-                  type="range"
-                  min="10"
-                  max="100"
-                  step="5"
-                  value={enhanceStrength}
-                  onChange={(e) => setEnhanceStrength(Number(e.target.value))}
-                  className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                />
-
-                <div className="flex justify-between text-[9px] text-slate-400 font-medium px-0.5">
-                  <span>Nhẹ (10%)</span>
-                  <span>Chuẩn (50%)</span>
-                  <span>Cực nét (100%)</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-slate-100" />
-
-            {/* Batch Rotate 90deg */}
-            <button
-              type="button"
-              id="btn-rotate-all"
-              onClick={handleRotateAll}
-              className="w-full flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-95 border border-blue-100"
-            >
-              <RotateCw className="w-3.5 h-3.5" />
-              <span>Xoay tất cả ảnh 90°</span>
-            </button>
-          </div>
-        )}
-
         {/* Empty State */}
         {photos.length === 0 ? (
-          <div className="text-center py-12 px-4 border-2 border-dashed border-slate-200 rounded-xl bg-white space-y-2">
+          <div className="text-center py-16 px-4 border-2 border-dashed border-slate-200 rounded-xl bg-white space-y-2.5">
             <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
               <ImageIcon className="w-6 h-6" />
             </div>
-            <div className="text-xs font-semibold text-slate-600">Chưa có ảnh nào</div>
-            <p className="text-[11px] text-slate-400">Tải ảnh ở cột bên cạnh hoặc dán (Ctrl+V) để bắt đầu dàn trang.</p>
+            <div className="text-xs font-bold text-slate-700">Chưa có ảnh nào</div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Tải ảnh từ khung tải lên hoặc dán (Ctrl+V) để bắt đầu dàn trang A4.
+            </p>
           </div>
         ) : (
           /* Image Cards List */
@@ -563,7 +259,7 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
                       <button
                         type="button"
                         onClick={() => onUpdatePhoto(photo.id, { qty: Math.max(1, (photo.qty || 1) - 1) })}
-                        className="w-6 h-6 flex items-center justify-center bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 text-xs font-bold transition"
+                        className="w-6 h-6 flex items-center justify-center bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer"
                       >
                         -
                       </button>
@@ -580,7 +276,7 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
                       <button
                         type="button"
                         onClick={() => onUpdatePhoto(photo.id, { qty: (photo.qty || 1) + 1 })}
-                        className="w-6 h-6 flex items-center justify-center bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 text-xs font-bold transition"
+                        className="w-6 h-6 flex items-center justify-center bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer"
                       >
                         +
                       </button>
@@ -593,7 +289,7 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
                         type="button"
                         onClick={() => handleEnhanceSingle(photo)}
                         disabled={enhancingId === photo.id}
-                        className={`p-1.5 rounded-md border transition shadow-2xs ${
+                        className={`p-1.5 rounded-md border transition shadow-2xs cursor-pointer ${
                           photo.isEnhanced
                             ? 'bg-amber-100 border-amber-300 text-amber-700 hover:bg-amber-200'
                             : 'bg-white border-slate-200 text-amber-600 hover:bg-amber-50 hover:border-amber-300'
@@ -613,7 +309,7 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
                       <button
                         type="button"
                         onClick={() => onOpenCropModal(photo)}
-                        className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 transition shadow-2xs"
+                        className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 transition shadow-2xs cursor-pointer"
                         title="Chỉnh khung & Cắt góc"
                       >
                         <Crop className="w-3.5 h-3.5" />
@@ -623,7 +319,7 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
                       <button
                         type="button"
                         onClick={() => handleRotateSingle(photo)}
-                        className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 transition shadow-2xs"
+                        className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 transition shadow-2xs cursor-pointer"
                         title="Xoay ảnh 90°"
                       >
                         <RotateCw className="w-3.5 h-3.5" />
@@ -633,7 +329,7 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
                       <button
                         type="button"
                         onClick={() => onRemovePhoto(photo.id)}
-                        className="p-1.5 rounded-md bg-white border border-transparent text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition"
+                        className="p-1.5 rounded-md bg-white border border-transparent text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition cursor-pointer"
                         title="Xóa ảnh này"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

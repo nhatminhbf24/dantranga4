@@ -3,6 +3,7 @@ import { PhotoItem, LayoutSettings, ShapeType } from './types';
 import { packImagesToPages } from './utils/packing';
 import { exportPagesToImage } from './utils/imageUtils';
 import { ImageListSidebar } from './components/ImageListSidebar';
+import { BatchToolsSidebar } from './components/BatchToolsSidebar';
 import { SettingsSidebar } from './components/SettingsSidebar';
 import { A4PreviewArea } from './components/A4PreviewArea';
 import { CropModal } from './components/CropModal';
@@ -125,7 +126,15 @@ export default function App() {
         smartCrop={settings.smartCrop}
       />
 
-      {/* Column 2: Settings Sidebar (Middle) */}
+      {/* Column 2: Batch Actions / Tools Sidebar */}
+      <BatchToolsSidebar
+        photos={photos}
+        onUpdatePhoto={handleUpdatePhoto}
+        onToast={addToast}
+        smartCrop={settings.smartCrop}
+      />
+
+      {/* Column 3: Settings Sidebar */}
       <SettingsSidebar
         settings={settings}
         onUpdateSettings={handleUpdateSettings}
@@ -140,7 +149,7 @@ export default function App() {
         defaultSize={defaultSize}
       />
 
-      {/* Column 3: Live Interactive A4 Preview (Right) */}
+      {/* Column 4: Live Interactive A4 Preview (Right) */}
       <A4PreviewArea
         pages={packedPages}
         settings={settings}
