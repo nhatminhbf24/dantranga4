@@ -13,8 +13,8 @@ export default function App() {
   const [settings, setSettings] = useState<LayoutSettings>({
     margin: 5,
     gap: 2,
-    cutLines: true,
-    smartCrop: true,
+    cutLines: false,
+    smartCrop: false,
     paperOrientation: 'portrait',
   });
 

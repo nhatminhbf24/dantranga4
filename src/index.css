@@ -41,11 +41,13 @@
 /* Print Specific Rules */
 @media print {
   @page {
-    size: A4 portrait;
-    margin: 0 !important;
+    size: auto;
+    margin: 0mm !important;
   }
 
-  * {
+  *,
+  *::before,
+  *::after {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     box-sizing: border-box !important;
@@ -53,31 +55,69 @@
 
   html,
   body {
-    width: 210mm !important;
-    height: 297mm !important;
+    width: 100% !important;
+    height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
     overflow: visible !important;
   }
 
-  .no-print {
+  /* Hide all UI elements, sidebars, modals, toolbars */
+  .no-print,
+  #sidebar,
+  #list-sidebar,
+  #toast-container,
+  #preview-topbar,
+  #modal-backdrop,
+  #crop-modal,
+  header,
+  nav,
+  aside {
     display: none !important;
+  }
+
+  #app-root {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #preview-area {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    position: static !important;
   }
 
   .print-area-wrapper {
     display: block !important;
-    width: 210mm !important;
+    width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
-    background: white !important;
+    background: transparent !important;
     overflow: visible !important;
   }
 
-  .a4-page-sheet {
-    width: 210mm !important;
-    height: 296.5mm !important;
+  #pages-container {
+    display: block !important;
+    transform: none !important;
+    gap: 0 !important;
     margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .a4-page-sheet {
+    display: block !important;
+    margin: 0 auto !important;
     padding: 0 !important;
     box-shadow: none !important;
     border: none !important;

@@ -45,7 +45,7 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   return (
     <aside
       id="sidebar"
-      className="w-80 shrink-0 flex flex-col bg-white border-r border-slate-200 h-full overflow-hidden z-20 shadow-xs"
+      className="no-print w-80 shrink-0 flex flex-col bg-white border-r border-slate-200 h-full overflow-hidden z-20 shadow-xs"
     >
       {/* Brand Header */}
       <div className="p-4 border-b border-slate-100 bg-white sticky top-0 z-20 flex items-center gap-3">
@@ -98,7 +98,22 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
           </div>
         </div>
 
-        {/* General Settings */}
+        {/* 1. Uploader Box (Tải ảnh vào trang) */}
+        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-2.5">
+          <div className="flex items-center gap-2 text-slate-800">
+            <FileImage className="w-4 h-4 text-blue-600" />
+            <h2 className="text-xs font-bold uppercase tracking-wide">Tải ảnh vào trang</h2>
+          </div>
+
+          <Uploader
+            onAddPhotos={onAddPhotos}
+            onToast={onToast}
+            defaultSize={defaultSize}
+            smartCrop={settings.smartCrop}
+          />
+        </div>
+
+        {/* 2. General Settings (Cài đặt lề & khoảng cách) */}
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3.5">
           <div className="flex items-center gap-2 text-slate-800">
             <Settings2 className="w-4 h-4 text-blue-600" />
@@ -168,21 +183,6 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
               className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
             />
           </label>
-        </div>
-
-        {/* Uploader Box */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-2.5">
-          <div className="flex items-center gap-2 text-slate-800">
-            <FileImage className="w-4 h-4 text-blue-600" />
-            <h2 className="text-xs font-bold uppercase tracking-wide">Tải ảnh vào trang</h2>
-          </div>
-
-          <Uploader
-            onAddPhotos={onAddPhotos}
-            onToast={onToast}
-            defaultSize={defaultSize}
-            smartCrop={settings.smartCrop}
-          />
         </div>
       </div>
 

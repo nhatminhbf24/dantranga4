@@ -140,7 +140,7 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
   return (
     <aside
       id="list-sidebar"
-      className="w-80 shrink-0 flex flex-col bg-slate-50 border-r border-slate-200 h-full overflow-hidden z-20"
+      className="no-print w-80 shrink-0 flex flex-col bg-slate-50 border-r border-slate-200 h-full overflow-hidden z-20"
     >
       {/* Sidebar Header */}
       <div className="p-4 border-b border-slate-200 bg-white sticky top-0 flex justify-between items-center z-10">
