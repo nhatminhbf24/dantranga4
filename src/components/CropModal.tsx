@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { X, ZoomIn, ZoomOut, RotateCw, Check, Move } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RotateCw, Check, Move, Sparkles, Undo2, Loader2, Eye } from 'lucide-react';
 import { PhotoItem, ShapeType } from '../types';
 import { rotateImageBase64, calculateCrop } from '../utils/imageUtils';
+import { enhanceImageQuality, calculatePrintDPI } from '../utils/imageEnhancer';
 
 interface CropModalProps {
   photo: PhotoItem | null;
@@ -23,6 +24,12 @@ export const CropModal: React.FC<CropModalProps> = ({
   const [cropY, setCropY] = useState(photo.cropY);
   const [shape, setShape] = useState<ShapeType>(photo.shape);
   const [isDragging, setIsDragging] = useState(false);
+  const [isEnhanced, setIsEnhanced] = useState(photo.isEnhanced || false);
+  const [currentSrc, setCurrentSrc] = useState(photo.originalSrc);
+  const [rawSrc, setRawSrc] = useState(photo.rawOriginalSrc || photo.originalSrc);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [showOriginalComparison, setShowOriginalComparison] = useState(false);
+
   const dragStartRef = useRef<{ x: number; y: number; startCropX: number; startCropY: number }>({
     x: 0,
     y: 0,
@@ -96,14 +103,47 @@ export const CropModal: React.FC<CropModalProps> = ({
     setCropY(newY);
   };
 
+  const handleToggleEnhance = async () => {
+    if (isEnhancing) return;
+    setIsEnhancing(true);
+
+    try {
+      if (isEnhanced) {
+        // Revert to unenhanced
+        setCurrentSrc(rawSrc);
+        setIsEnhanced(false);
+      } else {
+        // Run enhance
+        const res = await enhanceImageQuality(rawSrc, {
+          sharpenAmount: 0.52,
+          contrastAmount: 0.13,
+          brightnessAmount: 0.04,
+          vibranceAmount: 0.18,
+        });
+        setCurrentSrc(res.enhancedSrc);
+        setIsEnhanced(true);
+      }
+    } catch (err) {
+      console.error('Failed to enhance in modal:', err);
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
   const handleRotate = async () => {
-    const rotatedSrc = await rotateImageBase64(photo.originalSrc, 90);
+    const rotatedCurrent = await rotateImageBase64(currentSrc, 90);
+    const rotatedRaw = await rotateImageBase64(rawSrc, 90);
     const newWidth = photo.imgHeight;
     const newHeight = photo.imgWidth;
     const crop = calculateCrop(newWidth, newHeight, photo.targetWidth, photo.targetHeight, smartCrop);
 
+    setCurrentSrc(rotatedCurrent);
+    setRawSrc(rotatedRaw);
+
     onSave(photo.id, {
-      originalSrc: rotatedSrc,
+      originalSrc: rotatedCurrent,
+      rawOriginalSrc: rotatedRaw,
+      isEnhanced,
       imgWidth: newWidth,
       imgHeight: newHeight,
       cropX: crop.cropX,
@@ -117,6 +157,9 @@ export const CropModal: React.FC<CropModalProps> = ({
 
   const handleSave = () => {
     onSave(photo.id, {
+      originalSrc: currentSrc,
+      rawOriginalSrc: rawSrc,
+      isEnhanced,
       scale,
       cropX,
       cropY,
@@ -125,11 +168,21 @@ export const CropModal: React.FC<CropModalProps> = ({
     onClose();
   };
 
+  const dpiInfo = calculatePrintDPI(
+    photo.imgWidth,
+    photo.imgHeight,
+    photo.targetWidth,
+    photo.targetHeight,
+    scale
+  );
+
   // Preview calculations
   const percentW = (photo.imgWidth / actualCropW) * 100;
   const percentH = (photo.imgHeight / actualCropH) * 100;
   const percentX = (-cropX / actualCropW) * 100;
   const percentY = (-cropY / actualCropH) * 100;
+
+  const displayImageSrc = showOriginalComparison ? rawSrc : currentSrc;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
@@ -137,9 +190,22 @@ export const CropModal: React.FC<CropModalProps> = ({
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
           <div>
-            <h3 className="text-sm font-bold text-slate-900">Chỉnh sửa khung hình & Góc chụp</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900">Chỉnh sửa khung hình & Độ nét</h3>
+              <span
+                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                  dpiInfo.quality === 'high'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : dpiInfo.quality === 'good'
+                    ? 'bg-blue-100 text-blue-800'
+                    : 'bg-rose-100 text-rose-800'
+                }`}
+              >
+                {dpiInfo.label}
+              </span>
+            </div>
             <p className="text-[11px] text-slate-500">
-              Kích thước: {photo.targetWidth / 10} x {photo.targetHeight / 10} cm
+              Kích thước in: {photo.targetWidth / 10} x {photo.targetHeight / 10} cm • Gốc: {photo.imgWidth}x{photo.imgHeight}px
             </p>
           </div>
           <button
@@ -151,10 +217,25 @@ export const CropModal: React.FC<CropModalProps> = ({
         </div>
 
         {/* Crop Area */}
-        <div className="p-6 flex flex-col items-center justify-center bg-slate-100/70 overflow-hidden select-none">
-          <div className="text-[11px] text-slate-500 mb-2 flex items-center gap-1.5">
-            <Move className="w-3.5 h-3.5" />
-            <span>Kéo chuột để dịch chuyển ảnh • Cuộn chuột để Phóng to/Thu nhỏ</span>
+        <div className="p-6 flex flex-col items-center justify-center bg-slate-100/70 overflow-hidden select-none relative">
+          <div className="text-[11px] text-slate-500 mb-2 flex items-center justify-between w-full max-w-[320px]">
+            <span className="flex items-center gap-1">
+              <Move className="w-3.5 h-3.5 text-blue-500" />
+              Kéo chuột để chỉnh góc
+            </span>
+
+            {isEnhanced && (
+              <button
+                type="button"
+                onMouseDown={() => setShowOriginalComparison(true)}
+                onMouseUp={() => setShowOriginalComparison(false)}
+                onMouseLeave={() => setShowOriginalComparison(false)}
+                className="text-[11px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded flex items-center gap-1 transition select-none"
+              >
+                <Eye className="w-3 h-3" />
+                <span>Giữ để xem ảnh gốc</span>
+              </button>
+            )}
           </div>
 
           <div
@@ -173,7 +254,7 @@ export const CropModal: React.FC<CropModalProps> = ({
             }`}
           >
             <img
-              src={photo.originalSrc}
+              src={displayImageSrc}
               alt="Crop preview"
               draggable={false}
               className="absolute max-w-none pointer-events-none"
@@ -184,11 +265,55 @@ export const CropModal: React.FC<CropModalProps> = ({
                 top: `${percentY}%`,
               }}
             />
+
+            {showOriginalComparison && (
+              <div className="absolute top-2 left-2 bg-black/75 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                Ảnh gốc (Chưa tăng nét)
+              </div>
+            )}
           </div>
         </div>
 
         {/* Controls */}
         <div className="p-4 bg-white border-t border-slate-200 space-y-3">
+          {/* HD Enhancement Bar */}
+          <div className="flex items-center justify-between bg-amber-50/80 border border-amber-200/80 p-2.5 rounded-xl">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-amber-500 text-white shadow-2xs">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-amber-950">Phục hồi chi tiết & Khử mờ Zalo</div>
+                <div className="text-[10px] text-amber-700">Tăng độ nét viền, tương phản & màu in chuẩn</div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleToggleEnhance}
+              disabled={isEnhancing}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-xs ${
+                isEnhanced
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                  : 'bg-white border border-amber-300 text-amber-900 hover:bg-amber-100'
+              }`}
+            >
+              {isEnhancing ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : isEnhanced ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Đã bật HD</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Bật làm nét HD</span>
+                </>
+              )}
+            </button>
+          </div>
+
           {/* Zoom Slider */}
           <div className="flex items-center gap-3">
             <ZoomOut className="w-4 h-4 text-slate-400" />
@@ -273,3 +398,4 @@ export const CropModal: React.FC<CropModalProps> = ({
     </div>
   );
 };
+

@@ -9,9 +9,14 @@ import {
   Crop,
   SlidersHorizontal,
   ChevronDown,
+  Sparkles,
+  Undo2,
+  Loader2,
+  Zap,
 } from 'lucide-react';
 import { PhotoItem, ShapeType, DEFAULT_SIZE_PRESETS, SizePreset } from '../types';
 import { rotateImageBase64, calculateCrop } from '../utils/imageUtils';
+import { enhanceImageQuality, calculatePrintDPI } from '../utils/imageEnhancer';
 
 interface ImageListSidebarProps {
   photos: PhotoItem[];
@@ -34,6 +39,9 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
 }) => {
   const [batchPresetId, setBatchPresetId] = useState<string>('60x90_rect');
   const [batchQuantity, setBatchQuantity] = useState<number>(1);
+  const [enhanceStrength, setEnhanceStrength] = useState<number>(50);
+  const [isEnhancingAll, setIsEnhancingAll] = useState<boolean>(false);
+  const [enhancingId, setEnhancingId] = useState<string | null>(null);
 
   const totalCopies = photos.reduce((acc, p) => acc + (p.qty || 1), 0);
 
@@ -80,12 +88,14 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
 
     for (const photo of photos) {
       const rotatedSrc = await rotateImageBase64(photo.originalSrc, 90);
+      const rawRotated = photo.rawOriginalSrc ? await rotateImageBase64(photo.rawOriginalSrc, 90) : undefined;
       const newWidth = photo.imgHeight;
       const newHeight = photo.imgWidth;
       const crop = calculateCrop(newWidth, newHeight, photo.targetWidth, photo.targetHeight, smartCrop);
 
       onUpdatePhoto(photo.id, {
         originalSrc: rotatedSrc,
+        rawOriginalSrc: rawRotated,
         imgWidth: newWidth,
         imgHeight: newHeight,
         cropX: crop.cropX,
@@ -99,14 +109,91 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
     onToast('success', 'Đã xoay tất cả ảnh thành công!');
   };
 
+  // Enhance single image
+  const handleEnhanceSingle = async (photo: PhotoItem) => {
+    if (enhancingId) return;
+    setEnhancingId(photo.id);
+
+    try {
+      if (photo.isEnhanced && photo.rawOriginalSrc) {
+        // Revert to raw original
+        onUpdatePhoto(photo.id, {
+          originalSrc: photo.rawOriginalSrc,
+          isEnhanced: false,
+        });
+        onToast('info', 'Đã khôi phục ảnh gốc ban đầu');
+      } else {
+        // Apply Smart Sharpness & Contrast Recovery based on enhanceStrength
+        const sourceForEnhancing = photo.rawOriginalSrc || photo.originalSrc;
+        const sharpenVal = (enhanceStrength / 100) * 0.8 + 0.1;
+        const contrastVal = (enhanceStrength / 100) * 0.16 + 0.04;
+        const result = await enhanceImageQuality(sourceForEnhancing, {
+          sharpenAmount: sharpenVal,
+          contrastAmount: contrastVal,
+          brightnessAmount: 0.04,
+          vibranceAmount: 0.18,
+        });
+
+        onUpdatePhoto(photo.id, {
+          originalSrc: result.enhancedSrc,
+          rawOriginalSrc: sourceForEnhancing,
+          isEnhanced: true,
+        });
+        onToast('success', `Đã làm nét (${enhanceStrength}%) ảnh: ${photo.name}`);
+      }
+    } catch (err) {
+      console.error(err);
+      onToast('error', 'Không thể xử lý ảnh này');
+    } finally {
+      setEnhancingId(null);
+    }
+  };
+
+  // Enhance all photos batch
+  const handleEnhanceAll = async () => {
+    if (photos.length === 0 || isEnhancingAll) return;
+    setIsEnhancingAll(true);
+    onToast('info', `Đang phục hồi độ nét (${enhanceStrength}%) cho ${photos.length} ảnh...`);
+
+    const sharpenVal = (enhanceStrength / 100) * 0.8 + 0.1;
+    const contrastVal = (enhanceStrength / 100) * 0.16 + 0.04;
+
+    let successCount = 0;
+    for (const photo of photos) {
+      try {
+        const sourceForEnhancing = photo.rawOriginalSrc || photo.originalSrc;
+        const result = await enhanceImageQuality(sourceForEnhancing, {
+          sharpenAmount: sharpenVal,
+          contrastAmount: contrastVal,
+          brightnessAmount: 0.04,
+          vibranceAmount: 0.18,
+        });
+
+        onUpdatePhoto(photo.id, {
+          originalSrc: result.enhancedSrc,
+          rawOriginalSrc: sourceForEnhancing,
+          isEnhanced: true,
+        });
+        successCount++;
+      } catch (e) {
+        console.error('Enhance batch error for photo', photo.id, e);
+      }
+    }
+
+    setIsEnhancingAll(false);
+    onToast('success', `Đã nâng cao chất lượng (${enhanceStrength}%) cho ${successCount} ảnh!`);
+  };
+
   const handleRotateSingle = async (photo: PhotoItem) => {
     const rotatedSrc = await rotateImageBase64(photo.originalSrc, 90);
+    const rawRotated = photo.rawOriginalSrc ? await rotateImageBase64(photo.rawOriginalSrc, 90) : undefined;
     const newWidth = photo.imgHeight;
     const newHeight = photo.imgWidth;
     const crop = calculateCrop(newWidth, newHeight, photo.targetWidth, photo.targetHeight, smartCrop);
 
     onUpdatePhoto(photo.id, {
       originalSrc: rotatedSrc,
+      rawOriginalSrc: rawRotated,
       imgWidth: newWidth,
       imgHeight: newHeight,
       cropX: crop.cropX,
@@ -299,6 +386,60 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
 
             <div className="border-t border-slate-100" />
 
+            {/* Smart Quality & Sharpness Enhancement Batch */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                id="btn-enhance-all-hd"
+                onClick={handleEnhanceAll}
+                disabled={isEnhancingAll}
+                className="w-full flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:opacity-50 text-white px-3 py-2 rounded-lg text-xs font-bold shadow-xs transition active:scale-95"
+              >
+                {isEnhancingAll ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>Đang làm nét {photos.length} ảnh...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-amber-200" />
+                    <span>Làm nét & Tăng chất lượng TẤT CẢ</span>
+                  </>
+                )}
+              </button>
+
+              {/* Sharpness & Quality Intensity Slider */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-2 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                  <span className="flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>Mức độ làm nét:</span>
+                  </span>
+                  <span className="font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-[10px]">
+                    {enhanceStrength}%
+                  </span>
+                </div>
+
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  step="5"
+                  value={enhanceStrength}
+                  onChange={(e) => setEnhanceStrength(Number(e.target.value))}
+                  className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                />
+
+                <div className="flex justify-between text-[9px] text-slate-400 font-medium px-0.5">
+                  <span>Nhẹ (10%)</span>
+                  <span>Chuẩn (50%)</span>
+                  <span>Cực nét (100%)</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-100" />
+
             {/* Batch Rotate 90deg */}
             <button
               type="button"
@@ -330,11 +471,23 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
                 (p) => p.width === photo.targetWidth && p.height === photo.targetHeight && p.shape === photo.shape
               );
 
+              const dpiInfo = calculatePrintDPI(
+                photo.imgWidth,
+                photo.imgHeight,
+                photo.targetWidth,
+                photo.targetHeight,
+                photo.scale || 1
+              );
+
               return (
                 <div
                   key={photo.id}
                   id={`photo-card-${photo.id}`}
-                  className="bg-white border border-slate-200/80 hover:border-blue-300 rounded-xl p-3 shadow-2xs hover:shadow-sm transition group flex flex-col gap-2.5"
+                  className={`bg-white border rounded-xl p-3 shadow-2xs hover:shadow-sm transition group flex flex-col gap-2.5 ${
+                    photo.isEnhanced
+                      ? 'border-amber-300 ring-1 ring-amber-100'
+                      : 'border-slate-200/80 hover:border-blue-300'
+                  }`}
                 >
                   {/* Top: Thumbnail & Size Selector */}
                   <div className="flex items-center gap-2.5">
@@ -353,13 +506,37 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
                       <span className="absolute bottom-0.5 right-0.5 bg-black/60 text-white font-mono text-[9px] px-1 rounded">
                         #{index + 1}
                       </span>
+                      {photo.isEnhanced && (
+                        <span
+                          className="absolute top-0.5 left-0.5 bg-amber-500 text-white p-0.5 rounded shadow-xs"
+                          title="Đã được tăng cường nét & tương phản"
+                        >
+                          <Sparkles className="w-2.5 h-2.5" />
+                        </span>
+                      )}
                     </div>
 
-                    {/* Size Select */}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[11px] font-semibold text-slate-700 truncate mb-1" title={photo.name}>
-                        {photo.name}
+                    {/* Size Select & DPI Quality Badge */}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="text-[11px] font-semibold text-slate-700 truncate" title={photo.name}>
+                          {photo.name}
+                        </div>
+                        {/* DPI Badge */}
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                            dpiInfo.quality === 'high'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : dpiInfo.quality === 'good'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : 'bg-rose-50 text-rose-700 border border-rose-200 animate-pulse'
+                          }`}
+                          title={`Độ nét in ước tính: ${dpiInfo.label}`}
+                        >
+                          {dpiInfo.label}
+                        </span>
                       </div>
+
                       <select
                         value={matchedPreset ? matchedPreset.id : currentPresetId}
                         onChange={(e) => handleSizePresetChange(photo, e.target.value)}
@@ -411,6 +588,27 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
 
                     {/* Action Buttons */}
                     <div className="flex items-center gap-1">
+                      {/* Enhance Single Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleEnhanceSingle(photo)}
+                        disabled={enhancingId === photo.id}
+                        className={`p-1.5 rounded-md border transition shadow-2xs ${
+                          photo.isEnhanced
+                            ? 'bg-amber-100 border-amber-300 text-amber-700 hover:bg-amber-200'
+                            : 'bg-white border-slate-200 text-amber-600 hover:bg-amber-50 hover:border-amber-300'
+                        }`}
+                        title={photo.isEnhanced ? 'Khôi phục ảnh gốc ban đầu' : 'Làm nét & Tăng chất lượng ảnh Zalo'}
+                      >
+                        {enhancingId === photo.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                        ) : photo.isEnhanced ? (
+                          <Undo2 className="w-3.5 h-3.5" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+
                       {/* Crop / Adjust framing */}
                       <button
                         type="button"

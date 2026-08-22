@@ -4,6 +4,8 @@ export interface PhotoItem {
   id: string;
   name: string;
   originalSrc: string;
+  rawOriginalSrc?: string; // Original unenhanced image for toggle/undo
+  isEnhanced?: boolean;
   imgWidth: number;
   imgHeight: number;
   targetWidth: number; // in mm
