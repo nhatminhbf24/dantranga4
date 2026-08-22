@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   ZoomIn,
   ZoomOut,
@@ -9,24 +9,39 @@ import {
   Info,
   Move,
   Layers,
+  Undo2,
+  Redo2,
+  GripHorizontal,
 } from 'lucide-react';
-import { PackedPage, LayoutSettings, PhotoItem, ShapeType } from '../types';
+import { PackedPage, LayoutSettings, PhotoItem, ShapeType, PlacedPhotoItem } from '../types';
 import { A4_WIDTH_MM, A4_HEIGHT_MM } from '../utils/packing';
 
 interface A4PreviewAreaProps {
   pages: PackedPage[];
   settings: LayoutSettings;
   onUpdatePhoto: (id: string, updates: Partial<PhotoItem>) => void;
+  onReorderPhotos?: (sourceId: string, targetId: string) => void;
   onOpenCropModal: (photo: PhotoItem) => void;
   totalPhotos: number;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  historyCount?: number;
 }
 
 export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
   pages,
   settings,
   onUpdatePhoto,
+  onReorderPhotos,
   onOpenCropModal,
   totalPhotos,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
+  historyCount = 0,
 }) => {
   const [zoom, setZoom] = useState<number>(70); // Percentage: 30% to 150%
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -35,9 +50,13 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
   const pageW_mm = isLandscape ? A4_HEIGHT_MM : A4_WIDTH_MM;
   const pageH_mm = isLandscape ? A4_WIDTH_MM : A4_HEIGHT_MM;
 
-  // In-Page Interactive Dragging State
-  const [draggingPhotoId, setDraggingPhotoId] = useState<string | null>(null);
-  const dragInfoRef = useRef<{
+  // Inter-item Drag & Drop Swap State
+  const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
+  const [dragOverPhotoId, setDragOverPhotoId] = useState<string | null>(null);
+
+  // In-Page Interactive Cropping / Pan State
+  const [panningPhotoId, setPanningPhotoId] = useState<string | null>(null);
+  const panInfoRef = useRef<{
     photo: PhotoItem;
     startX: number;
     startY: number;
@@ -47,20 +66,90 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
     renderedHeight: number;
   } | null>(null);
 
+  // 1. Prevent background page scroll chaining when zooming inside preview
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // If Ctrl key or Meta key is pressed over container, zoom in/out instead of scrolling
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        setZoom((prev) => {
+          const delta = e.deltaY < 0 ? 5 : -5;
+          return Math.max(30, Math.min(150, prev + delta));
+        });
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, []);
+
+  // 2. Drag & Drop Reorder Handlers (HTML5 Drag & Drop)
+  const handleDragStart = (e: React.DragEvent, item: PlacedPhotoItem) => {
+    e.stopPropagation();
+    setDraggedPhotoId(item.id);
+    e.dataTransfer.setData('text/plain', item.id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetItem: PlacedPhotoItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (draggedPhotoId && draggedPhotoId !== targetItem.id) {
+      e.dataTransfer.dropEffect = 'move';
+      if (dragOverPhotoId !== targetItem.id) {
+        setDragOverPhotoId(targetItem.id);
+      }
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent, targetItem: PlacedPhotoItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (dragOverPhotoId === targetItem.id) {
+      setDragOverPhotoId(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetItem: PlacedPhotoItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const sourceId = draggedPhotoId || e.dataTransfer.getData('text/plain');
+    if (sourceId && sourceId !== targetItem.id && onReorderPhotos) {
+      onReorderPhotos(sourceId, targetItem.id);
+    }
+    setDraggedPhotoId(null);
+    setDragOverPhotoId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedPhotoId(null);
+    setDragOverPhotoId(null);
+  };
+
+  // 3. In-box photo pan / framing adjustment (Mousedown on image body)
   const handlePhotoMouseDown = (
     e: React.MouseEvent,
     photo: PhotoItem
   ) => {
     // Only drag on primary mouse button
     if (e.button !== 0) return;
+    // Don't pan if clicking the reorder handle
+    if ((e.target as HTMLElement).closest('.drag-reorder-handle')) {
+      return;
+    }
+
     e.preventDefault();
     e.stopPropagation();
 
     const targetEl = e.currentTarget as HTMLElement;
     const rect = targetEl.getBoundingClientRect();
 
-    setDraggingPhotoId(photo.id);
-    dragInfoRef.current = {
+    setPanningPhotoId(photo.id);
+    panInfoRef.current = {
       photo,
       startX: e.clientX,
       startY: e.clientY,
@@ -71,7 +160,7 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
     };
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!dragInfoRef.current) return;
+      if (!panInfoRef.current) return;
       const {
         photo: p,
         startX,
@@ -80,7 +169,7 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
         initialCropY,
         renderedWidth,
         renderedHeight,
-      } = dragInfoRef.current;
+      } = panInfoRef.current;
 
       const dx = moveEvent.clientX - startX;
       const dy = moveEvent.clientY - startY;
@@ -103,8 +192,8 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
     };
 
     const handleMouseUp = () => {
-      setDraggingPhotoId(null);
-      dragInfoRef.current = null;
+      setPanningPhotoId(null);
+      panInfoRef.current = null;
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
@@ -148,7 +237,8 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
     <div
       id="preview-area"
       ref={containerRef}
-      className="flex-1 flex flex-col items-center bg-slate-200/80 overflow-y-auto h-full relative"
+      className="flex-1 flex flex-col items-center bg-slate-200/80 overflow-y-auto h-full relative overscroll-contain"
+      style={{ overscrollBehavior: 'contain' }}
     >
       {/* Top Floating Control Bar */}
       <div
@@ -162,8 +252,8 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
         <button
           type="button"
           onClick={() => setZoom((z) => Math.max(30, z - 10))}
-          className="p-1 rounded-full hover:bg-slate-100 text-slate-600 transition"
-          title="Thu nhỏ"
+          className="p-1 rounded-full hover:bg-slate-100 text-slate-600 transition cursor-pointer"
+          title="Thu nhỏ (hoặc lăn chuột)"
         >
           <ZoomOut className="w-4 h-4" />
         </button>
@@ -181,8 +271,8 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
         <button
           type="button"
           onClick={() => setZoom((z) => Math.min(150, z + 10))}
-          className="p-1 rounded-full hover:bg-slate-100 text-slate-600 transition"
-          title="Phóng to"
+          className="p-1 rounded-full hover:bg-slate-100 text-slate-600 transition cursor-pointer"
+          title="Phóng to (hoặc lăn chuột)"
         >
           <ZoomIn className="w-4 h-4" />
         </button>
@@ -191,17 +281,46 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
 
         <div className="w-px h-4 bg-slate-200 mx-1" />
 
+        {/* Undo / Redo Buttons */}
+        <div className="flex items-center gap-1 bg-slate-100/90 rounded-lg p-0.5 border border-slate-200">
+          <button
+            type="button"
+            id="btn-undo"
+            onClick={onUndo}
+            disabled={!canUndo}
+            className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-bold text-slate-700 hover:bg-white disabled:opacity-35 disabled:hover:bg-transparent transition active:scale-95 cursor-pointer disabled:cursor-not-allowed"
+            title="Hoàn tác bước trước đó (Ctrl + Z)"
+          >
+            <Undo2 className="w-3.5 h-3.5 text-blue-600" />
+            <span>Hoàn tác {historyCount > 0 ? `(${historyCount})` : ''}</span>
+          </button>
+
+          <button
+            type="button"
+            id="btn-redo"
+            onClick={onRedo}
+            disabled={!canRedo}
+            className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-bold text-slate-700 hover:bg-white disabled:opacity-35 disabled:hover:bg-transparent transition active:scale-95 cursor-pointer disabled:cursor-not-allowed"
+            title="Làm lại bước vừa hoàn tác (Ctrl + Y hoặc Ctrl + Shift + Z)"
+          >
+            <Redo2 className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Làm lại</span>
+          </button>
+        </div>
+
+        <div className="w-px h-4 bg-slate-200 mx-1" />
+
         <button
           type="button"
           onClick={() => setZoom(70)}
-          className="px-2 py-0.5 rounded-md hover:bg-slate-100 text-[11px] font-semibold text-slate-600 transition"
+          className="px-2 py-0.5 rounded-md hover:bg-slate-100 text-[11px] font-semibold text-slate-600 transition cursor-pointer"
         >
           Mặc định (70%)
         </button>
         <button
           type="button"
           onClick={() => setZoom(100)}
-          className="px-2 py-0.5 rounded-md hover:bg-slate-100 text-[11px] font-semibold text-slate-600 transition"
+          className="px-2 py-0.5 rounded-md hover:bg-slate-100 text-[11px] font-semibold text-slate-600 transition cursor-pointer"
         >
           100%
         </button>
@@ -266,15 +385,23 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
 
                   const isCircle = item.shape === 'circle';
                   const isHeart = item.shape === 'heart';
+                  const isDraggingThis = draggedPhotoId === item.id;
+                  const isDragOverThis = dragOverPhotoId === item.id;
 
                   return (
                     <div
                       key={`placed-${item.id}-${item.instanceIndex}`}
                       id={`img-box-${item.id}-${item.instanceIndex}`}
+                      draggable={true}
+                      onDragStart={(e) => handleDragStart(e, item)}
+                      onDragOver={(e) => handleDragOver(e, item)}
+                      onDragLeave={(e) => handleDragLeave(e, item)}
+                      onDrop={(e) => handleDrop(e, item)}
+                      onDragEnd={handleDragEnd}
                       onMouseDown={(e) => handlePhotoMouseDown(e, item)}
                       onWheel={(e) => handlePhotoWheel(e, item)}
                       onDoubleClick={() => onOpenCropModal(item)}
-                      title="Kéo chuột để dịch ảnh • Cuộn chuột để zoom • Nhấp đúp để chỉnh chi tiết"
+                      title="Kéo thả để đổi vị trí ảnh • Kéo chuột trên ảnh để dịch tâm • Cuộn chuột để zoom • Nhấp đúp để chỉnh chi tiết"
                       style={{
                         position: 'absolute',
                         left: `${item.x}mm`,
@@ -282,9 +409,15 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
                         width: `${item.w}mm`,
                         height: `${item.h}mm`,
                       }}
-                      className={`overflow-hidden select-none cursor-grab active:cursor-grabbing group/box ${
+                      className={`overflow-hidden select-none cursor-grab active:cursor-grabbing group/box transition-all ${
                         isCircle ? 'shape-circle' : isHeart ? 'shape-heart' : ''
-                      } ${settings.cutLines ? 'cut-lines-box' : ''}`}
+                      } ${settings.cutLines ? 'cut-lines-box' : ''} ${
+                        isDraggingThis ? 'opacity-30 scale-95 ring-2 ring-blue-500' : ''
+                      } ${
+                        isDragOverThis
+                          ? 'ring-4 ring-emerald-500 ring-offset-2 scale-105 z-30 shadow-lg'
+                          : ''
+                      }`}
                     >
                       {/* Image Content */}
                       <img
@@ -300,7 +433,15 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
                         }}
                       />
 
-                      {/* Hover Info Tag (Hidden in Print) */}
+                      {/* Drag & Reorder Grip Handle (Top Left, visible on hover) */}
+                      <div
+                        className="no-print drag-reorder-handle opacity-0 group-hover/box:opacity-100 transition-opacity absolute top-1 left-1 bg-slate-900/80 backdrop-blur-xs text-white p-1 rounded cursor-grab active:cursor-grabbing z-20 flex items-center shadow-xs"
+                        title="Kéo biểu tượng này để đổi vị trí sang bức ảnh khác"
+                      >
+                        <GripHorizontal className="w-3 h-3 text-slate-200" />
+                      </div>
+
+                      {/* Hover Info Tag (Bottom Right, Hidden in Print) */}
                       <div className="no-print opacity-0 group-hover/box:opacity-100 transition-opacity absolute bottom-1 right-1 bg-black/65 backdrop-blur-xs text-white text-[9px] font-mono px-1 py-0.5 rounded pointer-events-none flex items-center gap-0.5 z-20">
                         <span>
                           {item.w / 10}x{item.h / 10}cm

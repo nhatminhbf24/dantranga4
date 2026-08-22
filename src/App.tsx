@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { PhotoItem, LayoutSettings, ShapeType } from './types';
 import { packImagesToPages } from './utils/packing';
 import { exportPagesToImage } from './utils/imageUtils';
@@ -8,14 +8,25 @@ import { SettingsSidebar } from './components/SettingsSidebar';
 import { A4PreviewArea } from './components/A4PreviewArea';
 import { CropModal } from './components/CropModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
+import { useHistoryState } from './hooks/useHistoryState';
 
 export default function App() {
-  const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  const {
+    state: photos,
+    set: setPhotos,
+    undo: handleUndo,
+    redo: handleRedo,
+    canUndo,
+    canRedo,
+    historyCount,
+  } = useHistoryState<PhotoItem[]>([], 13);
+
   const [settings, setSettings] = useState<LayoutSettings>({
     margin: 5,
     gap: 2,
     cutLines: false,
     smartCrop: false,
+    autoNesting: false,
     paperOrientation: 'portrait',
   });
 
@@ -45,31 +56,107 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // Keyboard shortcut support for Undo (Ctrl+Z) and Redo (Ctrl+Y, Ctrl+Shift+Z)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if typing in an input or textarea
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const isCtrlOrCmd = isMac ? e.metaKey : e.ctrlKey;
+
+      if (isCtrlOrCmd && !e.altKey) {
+        if (e.key === 'z' || e.key === 'Z') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            // Redo: Ctrl+Shift+Z
+            if (canRedo) {
+              handleRedo();
+              addToast('info', 'Làm lại bước tiếp theo');
+            }
+          } else {
+            // Undo: Ctrl+Z
+            if (canUndo) {
+              handleUndo();
+              addToast('info', 'Đã hoàn tác bước trước');
+            }
+          }
+        } else if (e.key === 'y' || e.key === 'Y') {
+          // Redo: Ctrl+Y
+          e.preventDefault();
+          if (canRedo) {
+            handleRedo();
+            addToast('info', 'Làm lại bước tiếp theo');
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [canUndo, canRedo, handleUndo, handleRedo, addToast]);
+
+  const onUndoWithToast = useCallback(() => {
+    if (canUndo) {
+      handleUndo();
+      addToast('info', 'Đã hoàn tác bước trước');
+    }
+  }, [canUndo, handleUndo, addToast]);
+
+  const onRedoWithToast = useCallback(() => {
+    if (canRedo) {
+      handleRedo();
+      addToast('info', 'Làm lại bước tiếp theo');
+    }
+  }, [canRedo, handleRedo, addToast]);
+
   const handleAddPhotos = useCallback((newPhotos: PhotoItem[]) => {
     setPhotos((prev) => [...prev, ...newPhotos]);
-  }, []);
+  }, [setPhotos]);
 
   const handleUpdatePhoto = useCallback((id: string, updates: Partial<PhotoItem>) => {
     setPhotos((prev) =>
       prev.map((photo) => (photo.id === id ? { ...photo, ...updates } : photo))
     );
-  }, []);
+  }, [setPhotos]);
 
   const handleRemovePhoto = useCallback((id: string) => {
     setPhotos((prev) => prev.filter((photo) => photo.id !== id));
     addToast('info', 'Đã xóa ảnh');
-  }, [addToast]);
+  }, [setPhotos, addToast]);
 
   const handleClearAll = useCallback(() => {
     if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ ảnh?')) {
       setPhotos([]);
       addToast('info', 'Đã xóa toàn bộ ảnh');
     }
-  }, [addToast]);
+  }, [setPhotos, addToast]);
 
   const handleUpdateSettings = useCallback((updates: Partial<LayoutSettings>) => {
     setSettings((prev) => ({ ...prev, ...updates }));
   }, []);
+
+  const handleReorderPhotos = useCallback(
+    (sourceId: string, targetId: string) => {
+      setPhotos((prev) => {
+        const sourceIndex = prev.findIndex((p) => p.id === sourceId);
+        const targetIndex = prev.findIndex((p) => p.id === targetId);
+        if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) {
+          return prev;
+        }
+
+        const newPhotos = [...prev];
+        const [movedPhoto] = newPhotos.splice(sourceIndex, 1);
+        newPhotos.splice(targetIndex, 0, movedPhoto);
+        return newPhotos;
+      });
+      addToast('info', 'Đã đổi vị trí ảnh');
+    },
+    [setPhotos, addToast]
+  );
 
   const packedPages = useMemo(() => {
     return packImagesToPages(photos, settings);
@@ -154,8 +241,14 @@ export default function App() {
         pages={packedPages}
         settings={settings}
         onUpdatePhoto={handleUpdatePhoto}
+        onReorderPhotos={handleReorderPhotos}
         onOpenCropModal={setCropModalPhoto}
         totalPhotos={photos.length}
+        onUndo={onUndoWithToast}
+        onRedo={onRedoWithToast}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        historyCount={historyCount}
       />
 
       {/* Modal for Fine-Tuned Crop / Pan / Framing */}

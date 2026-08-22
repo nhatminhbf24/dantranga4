@@ -25,6 +25,7 @@ export interface LayoutSettings {
   gap: number; // mm
   cutLines: boolean;
   smartCrop: boolean;
+  autoNesting?: boolean; // Tự động xoay ngang/dọc ghép khít tối đa tiết kiệm giấy A4
   paperOrientation: 'portrait' | 'landscape';
 }
 

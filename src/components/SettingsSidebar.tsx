@@ -10,6 +10,7 @@ import {
   Smartphone,
   Maximize2,
   FileImage,
+  LayoutGrid,
 } from 'lucide-react';
 import { LayoutSettings, ShapeType } from '../types';
 import { Uploader } from './Uploader';
@@ -164,6 +165,23 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
               checked={settings.cutLines}
               onChange={(e) => onUpdateSettings({ cutLines: e.target.checked })}
               className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+            />
+          </label>
+
+          {/* Auto Nesting / Best-Fit Toggle */}
+          <label className="flex items-center justify-between p-2.5 bg-emerald-50/60 rounded-lg border border-emerald-200 cursor-pointer hover:bg-emerald-50 transition select-none">
+            <div className="flex items-center gap-2">
+              <LayoutGrid className="w-4 h-4 text-emerald-600" />
+              <div>
+                <span className="text-xs font-semibold text-emerald-900 block">Tối ưu ghép khít (Auto Nesting)</span>
+                <span className="text-[10px] text-emerald-700">Ghép khít khoảng trống, giữ nguyên kích cỡ</span>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={Boolean(settings.autoNesting)}
+              onChange={(e) => onUpdateSettings({ autoNesting: e.target.checked })}
+              className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
             />
           </label>
 
