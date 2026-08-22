@@ -31,7 +31,10 @@ export default function App() {
   });
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [cropModalPhoto, setCropModalPhoto] = useState<PhotoItem | null>(null);
+  const [cropModalConfig, setCropModalConfig] = useState<{
+    photo: PhotoItem;
+    initialTab?: 'crop' | 'adjust';
+  } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
 
@@ -208,7 +211,7 @@ export default function App() {
         onUpdatePhoto={handleUpdatePhoto}
         onRemovePhoto={handleRemovePhoto}
         onClearAll={handleClearAll}
-        onOpenCropModal={setCropModalPhoto}
+        onOpenCropModal={(photo, initialTab) => setCropModalConfig({ photo, initialTab: initialTab || 'crop' })}
         onToast={addToast}
         smartCrop={settings.smartCrop}
       />
@@ -242,7 +245,7 @@ export default function App() {
         settings={settings}
         onUpdatePhoto={handleUpdatePhoto}
         onReorderPhotos={handleReorderPhotos}
-        onOpenCropModal={setCropModalPhoto}
+        onOpenCropModal={(photo) => setCropModalConfig({ photo, initialTab: 'crop' })}
         totalPhotos={photos.length}
         onUndo={onUndoWithToast}
         onRedo={onRedoWithToast}
@@ -251,11 +254,12 @@ export default function App() {
         historyCount={historyCount}
       />
 
-      {/* Modal for Fine-Tuned Crop / Pan / Framing */}
-      {cropModalPhoto && (
+      {/* Modal for Fine-Tuned Crop / Pan / Framing / Color Adjustments */}
+      {cropModalConfig && (
         <CropModal
-          photo={cropModalPhoto}
-          onClose={() => setCropModalPhoto(null)}
+          photo={cropModalConfig.photo}
+          initialTab={cropModalConfig.initialTab || 'crop'}
+          onClose={() => setCropModalConfig(null)}
           onSave={handleUpdatePhoto}
           smartCrop={settings.smartCrop}
         />

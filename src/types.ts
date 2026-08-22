@@ -1,11 +1,45 @@
 export type ShapeType = 'rect' | 'circle' | 'heart';
 
+export interface ImageAdjustments {
+  // Cân bằng trắng (White balance)
+  temperature: number; // -100 to 100 (Nhiệt độ màu)
+  tint: number; // -100 to 100 (Sắc thái)
+
+  // Ánh sáng (Light)
+  brightness: number; // -100 to 100 (Độ sáng)
+  contrast: number; // -100 to 100 (Độ tương phản)
+  highlights: number; // -100 to 100 (Vùng sáng)
+  shadows: number; // -100 to 100 (Vùng tối)
+  whites: number; // -100 to 100 (Điểm trắng)
+  blacks: number; // -100 to 100 (Điểm đen)
+
+  // Màu sắc (Color)
+  invert: boolean; // toggle (Đảo màu)
+  vibrance: number; // -100 to 100 (Độ rực màu)
+  saturation: number; // -100 to 100 (Độ bão hòa)
+}
+
+export const DEFAULT_ADJUSTMENTS: ImageAdjustments = {
+  temperature: 0,
+  tint: 0,
+  brightness: 0,
+  contrast: 0,
+  highlights: 0,
+  shadows: 0,
+  whites: 0,
+  blacks: 0,
+  invert: false,
+  vibrance: 0,
+  saturation: 0,
+};
+
 export interface PhotoItem {
   id: string;
   name: string;
   originalSrc: string;
   rawOriginalSrc?: string; // Original unenhanced image for toggle/undo
   isEnhanced?: boolean;
+  adjustments?: ImageAdjustments;
   imgWidth: number;
   imgHeight: number;
   targetWidth: number; // in mm

@@ -11,9 +11,10 @@ import {
   Layers,
   Wand2,
 } from 'lucide-react';
-import { PhotoItem, DEFAULT_SIZE_PRESETS } from '../types';
+import { PhotoItem, DEFAULT_SIZE_PRESETS, DEFAULT_ADJUSTMENTS } from '../types';
 import { rotateImageBase64, calculateCrop } from '../utils/imageUtils';
 import { enhanceImageQuality } from '../utils/imageEnhancer';
+import { calculateAutoAdjustments, applyAdjustmentsToImage } from '../utils/imageAdjustmentEngine';
 
 interface BatchToolsSidebarProps {
   photos: PhotoItem[];
@@ -33,9 +34,41 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
   const [enhanceStrength, setEnhanceStrength] = useState<number>(50);
   const [isEnhancingAll, setIsEnhancingAll] = useState<boolean>(false);
   const [isRevertingAll, setIsRevertingAll] = useState<boolean>(false);
+  const [isAutoAdjustingAll, setIsAutoAdjustingAll] = useState<boolean>(false);
 
   // Group presets by category
   const categories = Array.from(new Set(DEFAULT_SIZE_PRESETS.map((p) => p.category)));
+
+  // Batch Auto Adjust Colors (White balance, light & vibrancy)
+  const handleAutoAdjustAll = async () => {
+    if (photos.length === 0 || isAutoAdjustingAll) {
+      if (photos.length === 0) onToast('error', 'Chưa có ảnh nào để cân chỉnh màu!');
+      return;
+    }
+    setIsAutoAdjustingAll(true);
+    onToast('info', `Đang tự động cân chỉnh màu sắc & ánh sáng cho ${photos.length} ảnh...`);
+
+    let count = 0;
+    for (const photo of photos) {
+      try {
+        const sourceForAdjust = photo.rawOriginalSrc || photo.originalSrc;
+        const autoAdj = await calculateAutoAdjustments(sourceForAdjust);
+        const adjustedSrc = await applyAdjustmentsToImage(sourceForAdjust, autoAdj);
+
+        onUpdatePhoto(photo.id, {
+          originalSrc: adjustedSrc,
+          rawOriginalSrc: sourceForAdjust,
+          adjustments: autoAdj,
+        });
+        count++;
+      } catch (err) {
+        console.error('Batch auto adjust error for', photo.id, err);
+      }
+    }
+
+    setIsAutoAdjustingAll(false);
+    onToast('success', `Đã tự động cân chỉnh màu sắc cho ${count} ảnh!`);
+  };
 
   // 1. Batch Size Preset Change
   const handleApplyPresetToAll = () => {
@@ -335,7 +368,33 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
           </div>
         </div>
 
-        {/* CỤM 3: CHẤT LƯỢNG & ĐỘ NÉT (LÀM NÉT & PHỤC HỒI) */}
+        {/* CỤM 3: TỰ ĐỘNG CÂN CHỈNH MÀU SẮC & ÁNH SÁNG */}
+        <div className="bg-white rounded-xl p-3.5 border border-purple-200/90 shadow-2xs space-y-2.5 transition hover:border-purple-300">
+          <button
+            type="button"
+            id="btn-auto-adjust-all"
+            onClick={handleAutoAdjustAll}
+            disabled={isAutoAdjustingAll || photos.length === 0}
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-800 disabled:opacity-50 text-white px-3 py-2.5 rounded-xl text-xs font-bold shadow-xs transition active:scale-95 cursor-pointer"
+          >
+            {isAutoAdjustingAll ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <span>Đang cân chỉnh {photos.length} ảnh...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 text-purple-200" />
+                <span>Tự động cân chỉnh màu TẤT CẢ</span>
+              </>
+            )}
+          </button>
+          <p className="text-[10px] text-slate-500 text-center leading-relaxed">
+            Tự động tối ưu cân bằng trắng, tương phản & độ rực màu in chuẩn cho toàn bộ ảnh.
+          </p>
+        </div>
+
+        {/* CỤM 4: CHẤT LƯỢNG & ĐỘ NÉT (LÀM NÉT & PHỤC HỒI) */}
         <div className="bg-white rounded-xl p-3.5 border border-amber-200/90 shadow-2xs space-y-2.5 transition hover:border-amber-300">
           {/* Main Enhance Button */}
           <button

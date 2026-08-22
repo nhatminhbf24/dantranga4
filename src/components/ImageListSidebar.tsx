@@ -8,6 +8,7 @@ import {
   Sparkles,
   Undo2,
   Loader2,
+  Sliders,
 } from 'lucide-react';
 import { PhotoItem, DEFAULT_SIZE_PRESETS } from '../types';
 import { rotateImageBase64, calculateCrop } from '../utils/imageUtils';
@@ -18,7 +19,7 @@ interface ImageListSidebarProps {
   onUpdatePhoto: (id: string, updates: Partial<PhotoItem>) => void;
   onRemovePhoto: (id: string) => void;
   onClearAll: () => void;
-  onOpenCropModal: (photo: PhotoItem) => void;
+  onOpenCropModal: (photo: PhotoItem, initialTab?: 'crop' | 'adjust') => void;
   onToast: (type: 'success' | 'error' | 'info', text: string) => void;
   smartCrop: boolean;
 }
@@ -308,11 +309,21 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
                       {/* Crop / Adjust framing */}
                       <button
                         type="button"
-                        onClick={() => onOpenCropModal(photo)}
+                        onClick={() => onOpenCropModal(photo, 'crop')}
                         className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 transition shadow-2xs cursor-pointer"
                         title="Chỉnh khung & Cắt góc"
                       >
                         <Crop className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Color & Light Adjustments */}
+                      <button
+                        type="button"
+                        onClick={() => onOpenCropModal(photo, 'adjust')}
+                        className="p-1.5 rounded-md bg-white border border-slate-200 text-purple-600 hover:bg-purple-50 hover:border-purple-300 transition shadow-2xs cursor-pointer"
+                        title="Chỉnh màu, cân bằng trắng & ánh sáng"
+                      >
+                        <Sliders className="w-3.5 h-3.5" />
                       </button>
 
                       {/* Rotate 90° */}
