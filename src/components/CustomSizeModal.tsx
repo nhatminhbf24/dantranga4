@@ -361,32 +361,53 @@ export const CustomSizeModal: React.FC<CustomSizeModalProps> = ({
                   </div>
                 </div>
 
-                {/* Live Preview Box */}
-                <div className="flex flex-col items-center justify-center p-3 bg-white rounded-lg border border-slate-200/80 shadow-2xs h-full min-h-[160px]">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase mb-2">
-                    Xem trước tỷ lệ thực
-                  </span>
-                  <div className="flex items-center justify-center w-[130px] h-[130px] bg-slate-50/60 rounded border border-dashed border-slate-200 p-1">
-                    <div
-                      style={{
-                        width: `${boxW}px`,
-                        height: `${boxH}px`,
-                        borderRadius:
-                          shape === 'circle' ? '9999px' : shape === 'heart' ? '20px 20px 0 0' : '4px',
-                      }}
-                      className={`flex items-center justify-center border-2 border-pink-500 bg-pink-100/60 text-pink-700 font-bold text-[11px] shadow-xs transition-all duration-150 relative ${
-                        shape === 'heart' ? 'rotate-[-45deg]' : ''
-                      }`}
-                    >
-                      <span className={shape === 'heart' ? 'rotate-[45deg]' : ''}>
-                        {(widthMm / 10).toFixed(1)} x {(heightMm / 10).toFixed(1)}
-                      </span>
+                  {/* Live Preview Box */}
+                  <div className="flex flex-col items-center justify-center p-3 bg-white rounded-lg border border-slate-200/80 shadow-2xs h-full min-h-[160px]">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase mb-2">
+                      Xem trước tỷ lệ thực
+                    </span>
+                    <div className="flex items-center justify-center w-[130px] h-[130px] bg-slate-50/60 rounded border border-dashed border-slate-200 p-1">
+                      {shape === 'heart' ? (
+                        <div
+                          style={{
+                            width: `${boxW}px`,
+                            height: `${boxH}px`,
+                          }}
+                          className="relative flex items-center justify-center transition-all duration-150"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            className="w-full h-full drop-shadow-xs"
+                            fill="rgba(253, 242, 248, 0.95)"
+                            stroke="#ec4899"
+                            strokeWidth="1.5"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                          </svg>
+                          <span className="absolute inset-0 flex items-center justify-center text-pink-700 font-bold text-[11px] pt-0.5 pointer-events-none">
+                            {(widthMm / 10).toFixed(1)} x {(heightMm / 10).toFixed(1)}
+                          </span>
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            width: `${boxW}px`,
+                            height: `${boxH}px`,
+                            borderRadius: shape === 'circle' ? '9999px' : '4px',
+                          }}
+                          className="flex items-center justify-center border-2 border-pink-500 bg-pink-100/60 text-pink-700 font-bold text-[11px] shadow-xs transition-all duration-150"
+                        >
+                          <span>
+                            {(widthMm / 10).toFixed(1)} x {(heightMm / 10).toFixed(1)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-2 text-center text-[10px] font-semibold text-slate-500">
+                      {widthMm} mm × {heightMm} mm
                     </div>
                   </div>
-                  <div className="mt-2 text-center text-[10px] font-semibold text-slate-500">
-                    {widthMm} mm × {heightMm} mm
-                  </div>
-                </div>
               </div>
 
               {/* Tên gợi nhớ */}

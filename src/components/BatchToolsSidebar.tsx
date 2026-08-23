@@ -500,9 +500,6 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
                 <Sliders className="w-3.5 h-3.5 text-purple-600" />
                 <span className="text-[11px] uppercase tracking-wide">Cân chỉnh màu sắc & sáng:</span>
               </div>
-              <span className="text-[10px] text-purple-700 font-bold bg-purple-100/90 border border-purple-200 px-1.5 py-0.5 rounded">
-                Tự động
-              </span>
             </div>
 
             <button
@@ -561,12 +558,12 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
               {isEnhancingAll ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>Đang làm nét {photos.length} ảnh...</span>
+                  <span>Đang tăng chất lượng {photos.length} ảnh...</span>
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 text-amber-200" />
-                  <span>Làm nét & Tăng chất lượng TẤT CẢ</span>
+                  <span>Tăng chất lượng TẤT CẢ</span>
                 </>
               )}
             </button>
