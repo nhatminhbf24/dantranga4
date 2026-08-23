@@ -9,8 +9,9 @@ import {
   Undo2,
   Loader2,
   Sliders,
+  Ruler,
 } from 'lucide-react';
-import { PhotoItem, DEFAULT_SIZE_PRESETS } from '../types';
+import { PhotoItem, DEFAULT_SIZE_PRESETS, SizePreset } from '../types';
 import { rotateImageBase64, calculateCrop } from '../utils/imageUtils';
 import { enhanceImageQuality, calculatePrintDPI } from '../utils/imageEnhancer';
 
@@ -20,6 +21,8 @@ interface ImageListSidebarProps {
   onRemovePhoto: (id: string) => void;
   onClearAll: () => void;
   onOpenCropModal: (photo: PhotoItem, initialTab?: 'crop' | 'adjust') => void;
+  onOpenCustomSizeModal?: (photo?: PhotoItem) => void;
+  customPresets?: SizePreset[];
   onToast: (type: 'success' | 'error' | 'info', text: string) => void;
   smartCrop: boolean;
 }
@@ -30,12 +33,17 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
   onRemovePhoto,
   onClearAll,
   onOpenCropModal,
+  onOpenCustomSizeModal,
+  customPresets = [],
   onToast,
   smartCrop,
 }) => {
   const [enhancingId, setEnhancingId] = useState<string | null>(null);
 
   const totalCopies = photos.reduce((acc, p) => acc + (p.qty || 1), 0);
+
+  // Combine standard and custom presets
+  const allPresets = [...customPresets, ...DEFAULT_SIZE_PRESETS];
 
   // Enhance / Revert single image
   const handleEnhanceSingle = async (photo: PhotoItem) => {
@@ -96,7 +104,14 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
   };
 
   const handleSizePresetChange = (photo: PhotoItem, presetId: string) => {
-    const preset = DEFAULT_SIZE_PRESETS.find((p) => p.id === presetId);
+    if (presetId === '__custom_new__') {
+      if (onOpenCustomSizeModal) {
+        onOpenCustomSizeModal(photo);
+      }
+      return;
+    }
+
+    const preset = allPresets.find((p) => p.id === presetId);
     if (!preset) return;
 
     const crop = calculateCrop(photo.imgWidth, photo.imgHeight, preset.width, preset.height, smartCrop);
@@ -112,8 +127,8 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
     });
   };
 
-  // Group presets by category
-  const categories = Array.from(new Set(DEFAULT_SIZE_PRESETS.map((p) => p.category)));
+  // Group default presets by category
+  const defaultCategories = Array.from(new Set(DEFAULT_SIZE_PRESETS.map((p) => p.category)));
 
   return (
     <aside
@@ -164,7 +179,7 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
           <div className="space-y-2.5">
             {photos.map((photo, index) => {
               const currentPresetId = `${photo.targetWidth}x${photo.targetHeight}_${photo.shape}`;
-              const matchedPreset = DEFAULT_SIZE_PRESETS.find(
+              const matchedPreset = allPresets.find(
                 (p) => p.width === photo.targetWidth && p.height === photo.targetHeight && p.shape === photo.shape
               );
 
@@ -234,21 +249,59 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
                         </span>
                       </div>
 
-                      <select
-                        value={matchedPreset ? matchedPreset.id : currentPresetId}
-                        onChange={(e) => handleSizePresetChange(photo, e.target.value)}
-                        className="w-full text-xs font-medium border border-slate-200 bg-slate-50 rounded-lg p-1.5 text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition"
-                      >
-                        {categories.map((cat) => (
-                          <optgroup key={cat} label={cat}>
-                            {DEFAULT_SIZE_PRESETS.filter((p) => p.category === cat).map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.label}
+                      <div className="flex items-center gap-1">
+                        <select
+                          value={matchedPreset ? matchedPreset.id : currentPresetId}
+                          onChange={(e) => handleSizePresetChange(photo, e.target.value)}
+                          className="w-full text-xs font-medium border border-slate-200 bg-slate-50 rounded-lg p-1.5 text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition"
+                        >
+                          <option value="__custom_new__" className="font-bold text-pink-600">
+                            ➕ Nhập kích thước tùy chỉnh...
+                          </option>
+
+                          {/* Custom Presets Group */}
+                          {customPresets.length > 0 && (
+                            <optgroup label="⭐ Kích thước tùy chỉnh của bạn">
+                              {customPresets.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.label}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+
+                          {/* If photo has an ad-hoc dimension not in any preset */}
+                          {!matchedPreset && (
+                            <optgroup label="📐 Kích thước hiện tại của ảnh">
+                              <option value={currentPresetId}>
+                                Tùy chỉnh: {(photo.targetWidth / 10).toFixed(1)} x {(photo.targetHeight / 10).toFixed(1)} cm ({photo.shape})
                               </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
+                            </optgroup>
+                          )}
+
+                          {/* Standard presets grouped by category */}
+                          {defaultCategories.map((cat) => (
+                            <optgroup key={cat} label={cat}>
+                              {DEFAULT_SIZE_PRESETS.filter((p) => p.category === cat).map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.label}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+
+                        {onOpenCustomSizeModal && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenCustomSizeModal(photo)}
+                            className="p-1.5 bg-slate-100 hover:bg-pink-50 text-slate-500 hover:text-pink-600 rounded-lg border border-slate-200 transition shrink-0 cursor-pointer"
+                            title="Nhập kích thước tùy chỉnh cho ảnh này"
+                          >
+                            <Ruler className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 

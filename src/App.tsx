@@ -1,14 +1,17 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { PhotoItem, LayoutSettings, ShapeType } from './types';
+import { PhotoItem, LayoutSettings, ShapeType, SizePreset } from './types';
 import { packImagesToPages } from './utils/packing';
-import { exportPagesToImage } from './utils/imageUtils';
+import { exportPagesToImage, calculateCrop } from './utils/imageUtils';
 import { ImageListSidebar } from './components/ImageListSidebar';
 import { BatchToolsSidebar } from './components/BatchToolsSidebar';
 import { SettingsSidebar } from './components/SettingsSidebar';
 import { A4PreviewArea } from './components/A4PreviewArea';
 import { CropModal } from './components/CropModal';
+import { CustomSizeModal } from './components/CustomSizeModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { useHistoryState } from './hooks/useHistoryState';
+
+const CUSTOM_PRESETS_STORAGE_KEY = 'dau_dau_custom_size_presets';
 
 export default function App() {
   const {
@@ -35,6 +38,28 @@ export default function App() {
     photo: PhotoItem;
     initialTab?: 'crop' | 'adjust';
   } | null>(null);
+
+  // Custom Size Presets & Modal State
+  const [customPresets, setCustomPresets] = useState<SizePreset[]>(() => {
+    try {
+      const saved = localStorage.getItem(CUSTOM_PRESETS_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn('Error loading custom presets from storage', e);
+    }
+    return [];
+  });
+
+  const [customSizeModalConfig, setCustomSizeModalConfig] = useState<{
+    isOpen: boolean;
+    targetPhoto?: PhotoItem | null;
+  }>({
+    isOpen: false,
+    targetPhoto: null,
+  });
+
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
 
@@ -200,6 +225,78 @@ export default function App() {
     [photos.length, packedPages, settings, addToast]
   );
 
+  const handleSaveCustomPreset = useCallback((preset: SizePreset) => {
+    setCustomPresets((prev) => {
+      // If already exists with same dimensions and shape, replace it
+      const filtered = prev.filter((p) => !(p.width === preset.width && p.height === preset.height && p.shape === preset.shape));
+      const updated = [preset, ...filtered];
+      try {
+        localStorage.setItem(CUSTOM_PRESETS_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Error saving custom presets to storage', e);
+      }
+      return updated;
+    });
+    addToast('success', `Đã lưu mẫu kích thước: ${preset.label}`);
+  }, [addToast]);
+
+  const handleRemoveCustomPreset = useCallback((id: string) => {
+    setCustomPresets((prev) => {
+      const updated = prev.filter((p) => p.id !== id);
+      try {
+        localStorage.setItem(CUSTOM_PRESETS_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Error saving custom presets to storage', e);
+      }
+      return updated;
+    });
+    addToast('info', 'Đã xóa kích thước tùy chỉnh');
+  }, [addToast]);
+
+  const handleApplyPresetToPhoto = useCallback(
+    (photoId: string, preset: SizePreset) => {
+      const target = photos.find((p) => p.id === photoId);
+      if (!target) return;
+      const crop = calculateCrop(target.imgWidth, target.imgHeight, preset.width, preset.height, settings.smartCrop);
+      handleUpdatePhoto(photoId, {
+        targetWidth: preset.width,
+        targetHeight: preset.height,
+        shape: preset.shape,
+        cropX: crop.cropX,
+        cropY: crop.cropY,
+        cropW: crop.cropW,
+        cropH: crop.cropH,
+        scale: 1,
+      });
+      addToast('success', `Đã áp dụng kích thước ${preset.label} cho ảnh`);
+    },
+    [photos, settings.smartCrop, handleUpdatePhoto, addToast]
+  );
+
+  const handleApplyPresetToAll = useCallback(
+    (preset: SizePreset) => {
+      if (photos.length === 0) {
+        addToast('error', 'Chưa có ảnh nào để áp dụng kích thước!');
+        return;
+      }
+      photos.forEach((photo) => {
+        const crop = calculateCrop(photo.imgWidth, photo.imgHeight, preset.width, preset.height, settings.smartCrop);
+        handleUpdatePhoto(photo.id, {
+          targetWidth: preset.width,
+          targetHeight: preset.height,
+          shape: preset.shape,
+          cropX: crop.cropX,
+          cropY: crop.cropY,
+          cropW: crop.cropW,
+          cropH: crop.cropH,
+          scale: 1,
+        });
+      });
+      addToast('success', `Đã đồng bộ tất cả sang kích thước: ${preset.label}`);
+    },
+    [photos, settings.smartCrop, handleUpdatePhoto, addToast]
+  );
+
   return (
     <div id="app-root" className="flex w-full h-screen overflow-hidden bg-slate-100 text-slate-800 font-sans">
       {/* Toast Notifications */}
@@ -212,6 +309,8 @@ export default function App() {
         onRemovePhoto={handleRemovePhoto}
         onClearAll={handleClearAll}
         onOpenCropModal={(photo, initialTab) => setCropModalConfig({ photo, initialTab: initialTab || 'crop' })}
+        onOpenCustomSizeModal={(photo) => setCustomSizeModalConfig({ isOpen: true, targetPhoto: photo || null })}
+        customPresets={customPresets}
         onToast={addToast}
         smartCrop={settings.smartCrop}
       />
@@ -222,6 +321,8 @@ export default function App() {
         onUpdatePhoto={handleUpdatePhoto}
         onToast={addToast}
         smartCrop={settings.smartCrop}
+        customPresets={customPresets}
+        onOpenCustomSizeModal={() => setCustomSizeModalConfig({ isOpen: true, targetPhoto: null })}
       />
 
       {/* Column 3: Settings Sidebar */}
@@ -262,6 +363,20 @@ export default function App() {
           onClose={() => setCropModalConfig(null)}
           onSave={handleUpdatePhoto}
           smartCrop={settings.smartCrop}
+        />
+      )}
+
+      {/* Modal for Custom Size Input & Presets Management */}
+      {customSizeModalConfig.isOpen && (
+        <CustomSizeModal
+          isOpen={customSizeModalConfig.isOpen}
+          onClose={() => setCustomSizeModalConfig({ isOpen: false, targetPhoto: null })}
+          targetPhoto={customSizeModalConfig.targetPhoto}
+          customPresets={customPresets}
+          onSaveCustomPreset={handleSaveCustomPreset}
+          onRemoveCustomPreset={handleRemoveCustomPreset}
+          onApplyPresetToPhoto={(id, preset) => handleApplyPresetToPhoto(id, preset)}
+          onApplyPresetToAll={(preset) => handleApplyPresetToAll(preset)}
         />
       )}
     </div>

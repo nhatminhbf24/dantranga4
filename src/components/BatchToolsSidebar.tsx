@@ -11,8 +11,10 @@ import {
   Maximize2,
   Layers,
   Wand2,
+  Ruler,
+  Plus,
 } from 'lucide-react';
-import { PhotoItem, DEFAULT_SIZE_PRESETS, DEFAULT_ADJUSTMENTS } from '../types';
+import { PhotoItem, DEFAULT_SIZE_PRESETS, DEFAULT_ADJUSTMENTS, SizePreset } from '../types';
 import { rotateImageBase64, calculateCrop } from '../utils/imageUtils';
 import { enhanceImageQuality } from '../utils/imageEnhancer';
 import { calculateAutoAdjustments, applyAdjustmentsToImage } from '../utils/imageAdjustmentEngine';
@@ -22,6 +24,8 @@ interface BatchToolsSidebarProps {
   onUpdatePhoto: (id: string, updates: Partial<PhotoItem>) => void;
   onToast: (type: 'success' | 'error' | 'info', text: string) => void;
   smartCrop: boolean;
+  customPresets?: SizePreset[];
+  onOpenCustomSizeModal?: () => void;
 }
 
 export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
@@ -29,6 +33,8 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
   onUpdatePhoto,
   onToast,
   smartCrop,
+  customPresets = [],
+  onOpenCustomSizeModal,
 }) => {
   const [batchPresetId, setBatchPresetId] = useState<string>('60x90_rect');
   const [batchQuantity, setBatchQuantity] = useState<number>(1);
@@ -38,8 +44,9 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
   const [isAutoAdjustingAll, setIsAutoAdjustingAll] = useState<boolean>(false);
   const [isRevertingColorsAll, setIsRevertingColorsAll] = useState<boolean>(false);
 
+  const allPresets = [...customPresets, ...DEFAULT_SIZE_PRESETS];
   // Group presets by category
-  const categories = Array.from(new Set(DEFAULT_SIZE_PRESETS.map((p) => p.category)));
+  const defaultCategories = Array.from(new Set(DEFAULT_SIZE_PRESETS.map((p) => p.category)));
 
   // Batch Auto Adjust Colors (White balance, light & vibrancy)
   const handleAutoAdjustAll = async () => {
@@ -95,12 +102,12 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
   };
 
   // 1. Batch Size Preset Change
-  const handleApplyPresetToAll = () => {
+  const handleApplyPresetToAll = (presetOverride?: SizePreset) => {
     if (photos.length === 0) {
       onToast('error', 'Chưa có ảnh nào để áp dụng kích thước!');
       return;
     }
-    const preset = DEFAULT_SIZE_PRESETS.find((p) => p.id === batchPresetId);
+    const preset = presetOverride || allPresets.find((p) => p.id === batchPresetId);
     if (!preset) return;
 
     photos.forEach((photo) => {
@@ -269,26 +276,59 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
             <span className="text-[10px] text-slate-400 font-medium">Khổ in</span>
           </div>
 
-          <select
-            value={batchPresetId}
-            onChange={(e) => setBatchPresetId(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition"
-          >
-            {categories.map((cat) => (
-              <optgroup key={cat} label={cat}>
-                {DEFAULT_SIZE_PRESETS.filter((p) => p.category === cat).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+          <div className="space-y-1.5">
+            <select
+              value={batchPresetId}
+              onChange={(e) => {
+                if (e.target.value === '__custom_new__') {
+                  if (onOpenCustomSizeModal) onOpenCustomSizeModal();
+                  return;
+                }
+                setBatchPresetId(e.target.value);
+              }}
+              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition"
+            >
+              <option value="__custom_new__" className="font-bold text-pink-600">
+                ➕ Nhập kích thước tùy chỉnh...
+              </option>
+
+              {customPresets.length > 0 && (
+                <optgroup label="⭐ Kích thước tùy chỉnh của bạn">
+                  {customPresets.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+
+              {defaultCategories.map((cat) => (
+                <optgroup key={cat} label={cat}>
+                  {DEFAULT_SIZE_PRESETS.filter((p) => p.category === cat).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+
+            {onOpenCustomSizeModal && (
+              <button
+                type="button"
+                onClick={onOpenCustomSizeModal}
+                className="w-full flex items-center justify-center gap-1 text-[11px] font-bold text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200 py-1.5 rounded-lg transition cursor-pointer"
+              >
+                <Ruler className="w-3.5 h-3.5 text-pink-600" />
+                <span>+ Nhập kích thước tùy chỉnh</span>
+              </button>
+            )}
+          </div>
 
           <button
             type="button"
             id="btn-apply-size-all"
-            onClick={handleApplyPresetToAll}
+            onClick={() => handleApplyPresetToAll()}
             disabled={photos.length === 0}
             className="w-full flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white px-3 py-2 rounded-lg text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer"
           >

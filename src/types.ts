@@ -83,30 +83,40 @@ export interface SizePreset {
   width: number; // mm
   height: number; // mm
   shape: ShapeType;
+  isCustom?: boolean;
 }
 
 export const DEFAULT_SIZE_PRESETS: SizePreset[] = [
-  // Cơ bản (Standard)
-  { id: '50x70_rect', label: '5 x 7 cm (Ảnh thẻ / Mini)', category: 'Cơ bản', width: 50, height: 70, shape: 'rect' },
-  { id: '60x80_rect', label: '6 x 8 cm', category: 'Cơ bản', width: 60, height: 80, shape: 'rect' },
-  { id: '60x90_rect', label: '6 x 9 cm (Phổ biến nhất)', category: 'Cơ bản', width: 60, height: 90, shape: 'rect' },
-  { id: '90x120_rect', label: '9 x 12 cm', category: 'Cơ bản', width: 90, height: 120, shape: 'rect' },
-  { id: '100x150_rect', label: '10 x 15 cm (4R / Khung ảnh)', category: 'Cơ bản', width: 100, height: 150, shape: 'rect' },
-  { id: '130x180_rect', label: '13 x 18 cm (5R)', category: 'Cơ bản', width: 130, height: 180, shape: 'rect' },
-  { id: '150x210_rect', label: '15 x 21 cm (A5 / Nửa trang A4)', category: 'Cơ bản', width: 150, height: 210, shape: 'rect' },
+  // Ảnh tiêu chuẩn & Phổ biến (Standard & Popular)
+  { id: '50x70_rect', label: '5 x 7 cm (Ảnh thẻ / Mini)', category: 'Cơ bản & Phổ biến', width: 50, height: 70, shape: 'rect' },
+  { id: '60x80_rect', label: '6 x 8 cm', category: 'Cơ bản & Phổ biến', width: 60, height: 80, shape: 'rect' },
+  { id: '60x90_rect', label: '6 x 9 cm (Phổ biến nhất)', category: 'Cơ bản & Phổ biến', width: 60, height: 90, shape: 'rect' },
+  { id: '90x120_rect', label: '9 x 12 cm', category: 'Cơ bản & Phổ biến', width: 90, height: 120, shape: 'rect' },
+  { id: '100x150_rect', label: '10 x 15 cm (4R / Khung ảnh)', category: 'Cơ bản & Phổ biến', width: 100, height: 150, shape: 'rect' },
+  { id: '130x180_rect', label: '13 x 18 cm (5R)', category: 'Cơ bản & Phổ biến', width: 130, height: 180, shape: 'rect' },
+  { id: '150x210_rect', label: '15 x 21 cm (A5 / Nửa trang A4)', category: 'Cơ bản & Phổ biến', width: 150, height: 210, shape: 'rect' },
 
-  // Ảnh thẻ & Giấy tờ
-  { id: '30x40_rect', label: 'Ảnh 3 x 4 cm (CMND / CCCD)', category: 'Ảnh thẻ', width: 30, height: 40, shape: 'rect' },
-  { id: '40x60_rect', label: 'Ảnh 4 x 6 cm (Hộ chiếu)', category: 'Ảnh thẻ', width: 40, height: 60, shape: 'rect' },
-  { id: '40x55_rect', label: 'Chữ nhật 4 x 5.5 cm', category: 'Ảnh thẻ', width: 40, height: 55, shape: 'rect' },
+  // Kích thước chữ nhật & Mini mới
+  { id: '47x66_rect', label: 'Chữ nhật 4.7 x 6.6 cm', category: 'Chữ nhật & Mini', width: 47, height: 66, shape: 'rect' },
+  { id: '53x41_rect', label: 'Chữ nhật 5.3 x 4.1 cm', category: 'Chữ nhật & Mini', width: 53, height: 41, shape: 'rect' },
+  { id: '41x29_rect', label: 'Chữ nhật 4.1 x 2.9 cm', category: 'Chữ nhật & Mini', width: 41, height: 29, shape: 'rect' },
+  { id: '40x55_rect', label: 'Chữ nhật 4 x 5.5 cm', category: 'Chữ nhật & Mini', width: 40, height: 55, shape: 'rect' },
+  { id: '103x132_rect', label: 'Chữ nhật 10.3 x 13.2 cm (Lồng lịch)', category: 'Chữ nhật & Mini', width: 103, height: 132, shape: 'rect' },
 
-  // Hình dạng đặc biệt (Special Shapes)
-  { id: '50x50_rect', label: 'Vuông 5 x 5 cm (Polaroid mini)', category: 'Hình dạng đặc biệt', width: 50, height: 50, shape: 'rect' },
-  { id: '70x70_rect', label: 'Vuông 7 x 7 cm', category: 'Hình dạng đặc biệt', width: 70, height: 70, shape: 'rect' },
-  { id: '52x52_circle', label: 'Hình tròn 5.2 x 5.2 cm (Sticker / Huy hiệu)', category: 'Hình dạng đặc biệt', width: 52, height: 52, shape: 'circle' },
-  { id: '75x75_circle', label: 'Hình tròn 7.5 x 7.5 cm', category: 'Hình dạng đặc biệt', width: 75, height: 75, shape: 'circle' },
-  { id: '125x125_circle', label: 'Hình tròn 12.5 x 12.5 cm (Đĩa / Tranh tròn)', category: 'Hình dạng đặc biệt', width: 125, height: 125, shape: 'circle' },
-  { id: '42x42_heart', label: 'Trái tim 4.2 x 4.2 cm (Sticker Cute)', category: 'Hình dạng đặc biệt', width: 42, height: 42, shape: 'heart' },
-  { id: '70x70_heart', label: 'Trái tim 7 x 7 cm', category: 'Hình dạng đặc biệt', width: 70, height: 70, shape: 'heart' },
-  { id: '103x132_rect', label: 'Chữ nhật 10.3 x 13.2 cm (Lồng lịch)', category: 'Hình dạng đặc biệt', width: 103, height: 132, shape: 'rect' },
+  // Ảnh thẻ & Hồ sơ
+  { id: '30x40_rect', label: 'Ảnh 3 x 4 cm (CMND / CCCD)', category: 'Ảnh thẻ & Hồ sơ', width: 30, height: 40, shape: 'rect' },
+  { id: '40x60_rect', label: 'Ảnh 4 x 6 cm (Hộ chiếu)', category: 'Ảnh thẻ & Hồ sơ', width: 40, height: 60, shape: 'rect' },
+
+  // Hình tròn (Sticker / Huy hiệu)
+  { id: '40x40_circle', label: 'Hình tròn 4.0 cm (4.0 x 4.0 cm)', category: 'Hình tròn (Sticker / Huy hiệu)', width: 40, height: 40, shape: 'circle' },
+  { id: '48x48_circle', label: 'Hình tròn 4.8 cm (4.8 x 4.8 cm)', category: 'Hình tròn (Sticker / Huy hiệu)', width: 48, height: 48, shape: 'circle' },
+  { id: '52x52_circle', label: 'Hình tròn 5.2 cm (5.2 x 5.2 cm)', category: 'Hình tròn (Sticker / Huy hiệu)', width: 52, height: 52, shape: 'circle' },
+  { id: '75x75_circle', label: 'Hình tròn 7.5 cm (7.5 x 7.5 cm)', category: 'Hình tròn (Sticker / Huy hiệu)', width: 75, height: 75, shape: 'circle' },
+  { id: '125x125_circle', label: 'Hình tròn 12.5 cm (12.5 x 12.5 cm)', category: 'Hình tròn (Sticker / Huy hiệu)', width: 125, height: 125, shape: 'circle' },
+
+  // Hình vuông & Trái tim
+  { id: '50x50_rect', label: 'Vuông 5 x 5 cm (Polaroid mini)', category: 'Hình vuông & Trái tim', width: 50, height: 50, shape: 'rect' },
+  { id: '70x70_rect', label: 'Vuông 7 x 7 cm', category: 'Hình vuông & Trái tim', width: 70, height: 70, shape: 'rect' },
+  { id: '42x42_heart', label: 'Trái tim 4.2 x 4.2 cm (Sticker Cute)', category: 'Hình vuông & Trái tim', width: 42, height: 42, shape: 'heart' },
+  { id: '70x70_heart', label: 'Trái tim 7 x 7 cm', category: 'Hình vuông & Trái tim', width: 70, height: 70, shape: 'heart' },
 ];
