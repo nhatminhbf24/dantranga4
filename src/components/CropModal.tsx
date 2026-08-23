@@ -14,7 +14,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { PhotoItem, ShapeType, ImageAdjustments, DEFAULT_ADJUSTMENTS } from '../types';
-import { rotateImageBase64, calculateCrop } from '../utils/imageUtils';
+import { rotateImageBase64, calculateCrop, createOptimizedPreview } from '../utils/imageUtils';
 import { enhanceImageQuality, calculatePrintDPI } from '../utils/imageEnhancer';
 import { PhotoAdjustmentsPanel } from './PhotoAdjustmentsPanel';
 import {
@@ -197,9 +197,11 @@ export const CropModal: React.FC<CropModalProps> = ({
     setRawSrc(rotatedRaw);
 
     const finalAdjusted = await applyAdjustmentsToImage(rotatedBase, adjustments);
+    const previewSrc = await createOptimizedPreview(finalAdjusted, 800, 0.85);
 
     onSave(photo.id, {
       originalSrc: finalAdjusted,
+      previewSrc: previewSrc,
       rawOriginalSrc: rotatedRaw,
       isEnhanced,
       adjustments,
@@ -218,8 +220,10 @@ export const CropModal: React.FC<CropModalProps> = ({
     setIsApplyingAdjustmentPreview(true);
     try {
       const finalImageSrc = await applyAdjustmentsToImage(currentBaseSrc, adjustments);
+      const previewSrc = await createOptimizedPreview(finalImageSrc, 800, 0.85);
       onSave(photo.id, {
         originalSrc: finalImageSrc,
+        previewSrc: previewSrc,
         rawOriginalSrc: rawSrc,
         isEnhanced,
         adjustments,

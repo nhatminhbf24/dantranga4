@@ -15,7 +15,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { PhotoItem, DEFAULT_SIZE_PRESETS, DEFAULT_ADJUSTMENTS, SizePreset } from '../types';
-import { rotateImageBase64, calculateCrop } from '../utils/imageUtils';
+import { rotateImageBase64, calculateCrop, createOptimizedPreview } from '../utils/imageUtils';
 import { enhanceImageQuality } from '../utils/imageEnhancer';
 import { calculateAutoAdjustments, applyAdjustmentsToImage } from '../utils/imageAdjustmentEngine';
 
@@ -58,20 +58,27 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
     onToast('info', `Đang tự động cân chỉnh màu sắc & ánh sáng cho ${photos.length} ảnh...`);
 
     let count = 0;
-    for (const photo of photos) {
+    for (let i = 0; i < photos.length; i++) {
+      const photo = photos[i];
       try {
         const sourceForAdjust = photo.rawOriginalSrc || photo.originalSrc;
         const autoAdj = await calculateAutoAdjustments(sourceForAdjust);
         const adjustedSrc = await applyAdjustmentsToImage(sourceForAdjust, autoAdj);
+        const previewSrc = await createOptimizedPreview(adjustedSrc, 800, 0.85);
 
         onUpdatePhoto(photo.id, {
           originalSrc: adjustedSrc,
+          previewSrc: previewSrc,
           rawOriginalSrc: sourceForAdjust,
           adjustments: autoAdj,
         });
         count++;
       } catch (err) {
         console.error('Batch auto adjust error for', photo.id, err);
+      }
+      // Yield to main thread
+      if (i % 2 === 0) {
+        await new Promise((r) => setTimeout(r, 0));
       }
     }
 
@@ -88,13 +95,22 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
     setIsRevertingColorsAll(true);
 
     let count = 0;
-    for (const photo of photos) {
+    for (let i = 0; i < photos.length; i++) {
+      const photo = photos[i];
       const originalSource = photo.rawOriginalSrc || photo.originalSrc;
+      let previewSrc = photo.previewSrc;
+      if (photo.rawOriginalSrc) {
+        previewSrc = await createOptimizedPreview(originalSource, 800, 0.85);
+      }
       onUpdatePhoto(photo.id, {
         originalSrc: originalSource,
+        previewSrc: previewSrc,
         adjustments: { ...DEFAULT_ADJUSTMENTS },
       });
       count++;
+      if (i % 3 === 0) {
+        await new Promise((r) => setTimeout(r, 0));
+      }
     }
 
     setIsRevertingColorsAll(false);
@@ -162,7 +178,8 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
     const contrastVal = (enhanceStrength / 100) * 0.16 + 0.04;
 
     let successCount = 0;
-    for (const photo of photos) {
+    for (let i = 0; i < photos.length; i++) {
+      const photo = photos[i];
       try {
         const sourceForEnhancing = photo.rawOriginalSrc || photo.originalSrc;
         const result = await enhanceImageQuality(sourceForEnhancing, {
@@ -172,14 +189,20 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
           vibranceAmount: 0.18,
         });
 
+        const previewSrc = await createOptimizedPreview(result.enhancedSrc, 800, 0.85);
+
         onUpdatePhoto(photo.id, {
           originalSrc: result.enhancedSrc,
+          previewSrc: previewSrc,
           rawOriginalSrc: sourceForEnhancing,
           isEnhanced: true,
         });
         successCount++;
       } catch (e) {
         console.error('Enhance batch error for photo', photo.id, e);
+      }
+      if (i % 2 === 0) {
+        await new Promise((r) => setTimeout(r, 0));
       }
     }
 
@@ -188,20 +211,26 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
   };
 
   // 4. Batch Revert All to Raw Original
-  const handleRevertAllToOriginal = () => {
+  const handleRevertAllToOriginal = async () => {
     if (photos.length === 0) return;
     setIsRevertingAll(true);
     let revertCount = 0;
 
-    photos.forEach((photo) => {
+    for (let i = 0; i < photos.length; i++) {
+      const photo = photos[i];
       if (photo.isEnhanced && photo.rawOriginalSrc) {
+        const previewSrc = await createOptimizedPreview(photo.rawOriginalSrc, 800, 0.85);
         onUpdatePhoto(photo.id, {
           originalSrc: photo.rawOriginalSrc,
+          previewSrc: previewSrc,
           isEnhanced: false,
         });
         revertCount++;
       }
-    });
+      if (i % 3 === 0) {
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
 
     setIsRevertingAll(false);
     if (revertCount > 0) {
@@ -219,15 +248,18 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
     }
     onToast('info', 'Đang xoay toàn bộ ảnh 90°...');
 
-    for (const photo of photos) {
+    for (let i = 0; i < photos.length; i++) {
+      const photo = photos[i];
       const rotatedSrc = await rotateImageBase64(photo.originalSrc, 90);
       const rawRotated = photo.rawOriginalSrc ? await rotateImageBase64(photo.rawOriginalSrc, 90) : undefined;
+      const previewSrc = await createOptimizedPreview(rotatedSrc, 800, 0.85);
       const newWidth = photo.imgHeight;
       const newHeight = photo.imgWidth;
       const crop = calculateCrop(newWidth, newHeight, photo.targetWidth, photo.targetHeight, smartCrop);
 
       onUpdatePhoto(photo.id, {
         originalSrc: rotatedSrc,
+        previewSrc: previewSrc,
         rawOriginalSrc: rawRotated,
         imgWidth: newWidth,
         imgHeight: newHeight,
@@ -237,6 +269,10 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
         cropH: crop.cropH,
         scale: 1,
       });
+
+      if (i % 2 === 0) {
+        await new Promise((r) => setTimeout(r, 0));
+      }
     }
 
     onToast('success', 'Đã xoay tất cả ảnh 90° thành công!');

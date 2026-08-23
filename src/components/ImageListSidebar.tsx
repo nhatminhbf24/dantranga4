@@ -213,7 +213,7 @@ export const ImageListSidebar: React.FC<ImageListSidebarProps> = ({
                             ? 'shape-heart'
                             : 'rounded-md'
                         }`}
-                        style={{ backgroundImage: `url(${photo.originalSrc})` }}
+                        style={{ backgroundImage: `url(${photo.previewSrc || photo.originalSrc})` }}
                       />
                       <span className="absolute bottom-0.5 right-0.5 bg-black/60 text-white font-mono text-[9px] px-1 rounded">
                         #{index + 1}

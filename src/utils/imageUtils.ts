@@ -39,6 +39,47 @@ export async function getImageDimensions(src: string): Promise<{ width: number; 
   }
 }
 
+/**
+ * Creates a lightweight, optimized preview image (maxDim around 800px, compressed WebP/JPEG)
+ * to prevent DOM and GPU memory lag when working with dozens of 20MB+ high-res photos.
+ */
+export async function createOptimizedPreview(
+  src: string,
+  maxDimension = 800,
+  quality = 0.85
+): Promise<string> {
+  try {
+    const img = await loadImage(src);
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+
+    // If image is already smaller than maxDimension, return directly to avoid re-compression
+    if (w <= maxDimension && h <= maxDimension) {
+      return src;
+    }
+
+    const scale = Math.min(1, maxDimension / Math.max(w, h));
+    const targetW = Math.max(1, Math.round(w * scale));
+    const targetH = Math.max(1, Math.round(h * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return src;
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'medium';
+    ctx.drawImage(img, 0, 0, targetW, targetH);
+
+    // Prefer webp for smaller memory footprint, fallback to jpeg
+    return canvas.toDataURL('image/jpeg', quality);
+  } catch (e) {
+    console.warn('Failed to create optimized preview, falling back to original', e);
+    return src;
+  }
+}
+
 export async function rotateImageBase64(src: string, angle = 90): Promise<string> {
   try {
     const img = await loadImage(src);

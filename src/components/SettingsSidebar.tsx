@@ -12,7 +12,7 @@ import {
   FileImage,
   LayoutGrid,
 } from 'lucide-react';
-import { LayoutSettings, ShapeType } from '../types';
+import { LayoutSettings, ShapeType, SizePreset } from '../types';
 import { Uploader } from './Uploader';
 import { PhotoItem } from '../types';
 
@@ -28,6 +28,7 @@ interface SettingsSidebarProps {
   exportProgress: { current: number; total: number } | null;
   onToast: (type: 'success' | 'error' | 'info', text: string) => void;
   defaultSize: { width: number; height: number; shape: ShapeType };
+  customPresets?: SizePreset[];
 }
 
 export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
@@ -42,6 +43,7 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   exportProgress,
   onToast,
   defaultSize,
+  customPresets = [],
 }) => {
   return (
     <aside
@@ -113,6 +115,7 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
             onToast={onToast}
             defaultSize={defaultSize}
             smartCrop={settings.smartCrop}
+            customPresets={customPresets}
           />
         </div>
 

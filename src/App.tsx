@@ -338,6 +338,7 @@ export default function App() {
         exportProgress={exportProgress}
         onToast={addToast}
         defaultSize={defaultSize}
+        customPresets={customPresets}
       />
 
       {/* Column 4: Live Interactive A4 Preview (Right) */}

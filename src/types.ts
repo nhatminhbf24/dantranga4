@@ -37,6 +37,7 @@ export interface PhotoItem {
   id: string;
   name: string;
   originalSrc: string;
+  previewSrc?: string; // Lightweight downscaled preview (max 800px) for super-fast UI & A4 layout rendering
   rawOriginalSrc?: string; // Original unenhanced image for toggle/undo
   isEnhanced?: boolean;
   adjustments?: ImageAdjustments;

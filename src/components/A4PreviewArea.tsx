@@ -138,39 +138,51 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
       renderedHeight: rect.height || 100,
     };
 
+    let rafId: number | null = null;
+
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!panInfoRef.current) return;
-      const {
-        photo: p,
-        startX,
-        startY,
-        initialCropX,
-        initialCropY,
-        renderedWidth,
-        renderedHeight,
-      } = panInfoRef.current;
+      if (rafId) return;
 
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (!panInfoRef.current) return;
+        const {
+          photo: p,
+          startX,
+          startY,
+          initialCropX,
+          initialCropY,
+          renderedWidth,
+          renderedHeight,
+        } = panInfoRef.current;
 
-      const scale = p.scale || 1;
-      const actualCropW = p.cropW / scale;
-      const actualCropH = p.cropH / scale;
+        const dx = moveEvent.clientX - startX;
+        const dy = moveEvent.clientY - startY;
 
-      // 1:1 Pixel-perfect direct manipulation mapping from screen pixels to image crop pixels
-      const pxScaleX = actualCropW / renderedWidth;
-      const pxScaleY = actualCropH / renderedHeight;
+        const scale = p.scale || 1;
+        const actualCropW = p.cropW / scale;
+        const actualCropH = p.cropH / scale;
 
-      let newX = initialCropX - dx * pxScaleX;
-      let newY = initialCropY - dy * pxScaleY;
+        // 1:1 Pixel-perfect direct manipulation mapping from screen pixels to image crop pixels
+        const pxScaleX = actualCropW / renderedWidth;
+        const pxScaleY = actualCropH / renderedHeight;
 
-      newX = Math.max(0, Math.min(newX, p.imgWidth - actualCropW));
-      newY = Math.max(0, Math.min(newY, p.imgHeight - actualCropH));
+        let newX = initialCropX - dx * pxScaleX;
+        let newY = initialCropY - dy * pxScaleY;
 
-      onUpdatePhoto(p.id, { cropX: newX, cropY: newY });
+        newX = Math.max(0, Math.min(newX, p.imgWidth - actualCropW));
+        newY = Math.max(0, Math.min(newY, p.imgHeight - actualCropH));
+
+        onUpdatePhoto(p.id, { cropX: newX, cropY: newY });
+      });
     };
 
     const handleMouseUp = () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
       setPanningPhotoId(null);
       panInfoRef.current = null;
       window.removeEventListener('mousemove', handleMouseMove);
@@ -367,9 +379,10 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
                     >
                       {/* Image Content */}
                       <img
-                        src={item.originalSrc}
+                        src={item.previewSrc || item.originalSrc}
                         alt={item.name}
                         draggable={false}
+                        decoding="async"
                         className="absolute max-w-none pointer-events-none transition-none"
                         style={{
                           width: `${percentW}%`,
