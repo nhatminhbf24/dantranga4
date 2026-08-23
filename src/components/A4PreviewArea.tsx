@@ -12,6 +12,10 @@ import {
   Undo2,
   Redo2,
   GripHorizontal,
+  Grid,
+  Ruler,
+  HelpCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import { PackedPage, LayoutSettings, PhotoItem, ShapeType, PlacedPhotoItem } from '../types';
 import { A4_WIDTH_MM, A4_HEIGHT_MM } from '../utils/packing';
@@ -44,6 +48,10 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
   historyCount = 0,
 }) => {
   const [zoom, setZoom] = useState<number>(70); // Percentage: 30% to 150%
+  const [showRuler, setShowRuler] = useState<boolean>(false);
+  const [showGrid, setShowGrid] = useState<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [showHelp, setShowHelp] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const isLandscape = settings.paperOrientation === 'landscape';
@@ -65,6 +73,32 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
     renderedWidth: number;
     renderedHeight: number;
   } | null>(null);
+
+  // Calculate paper efficiency
+  const calculateEfficiency = (page: PackedPage) => {
+    const totalItemArea = page.items.reduce((acc, it) => acc + it.w * it.h, 0);
+    const usableArea = (pageW_mm - settings.margin * 2) * (pageH_mm - settings.margin * 2);
+    if (usableArea <= 0) return 0;
+    return Math.min(100, Math.round((totalItemArea / usableArea) * 100));
+  };
+
+  // Fullscreen toggle
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
 
   // 1. Drag & Drop Reorder Handlers (HTML5 Drag & Drop)
   const handleDragStart = (e: React.DragEvent, item: PlacedPhotoItem) => {
@@ -164,7 +198,7 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
         const actualCropW = p.cropW / scale;
         const actualCropH = p.cropH / scale;
 
-        // 1:1 Pixel-perfect direct manipulation mapping from screen pixels to image crop pixels
+        // Direct manipulation mapping
         const pxScaleX = actualCropW / renderedWidth;
         const pxScaleY = actualCropH / renderedHeight;
 
@@ -197,22 +231,22 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
     <div
       id="preview-area"
       ref={containerRef}
-      className="flex-1 flex flex-col items-center bg-slate-200/80 overflow-y-auto h-full relative"
+      className="flex-1 flex flex-col items-center bg-slate-200/90 overflow-y-auto h-full relative"
     >
       {/* Top Floating Control Bar */}
       <div
         id="preview-topbar"
-        className="no-print sticky top-3 z-30 flex items-center gap-2 bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-full shadow-md border border-slate-200/80 text-xs text-slate-700"
+        className="no-print sticky top-3 z-30 flex items-center flex-wrap justify-center gap-2 bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-2xl shadow-md border border-slate-200/90 text-xs text-slate-700"
       >
         <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider pl-1">
-          Zoom:
+          Thu phóng:
         </span>
 
         <button
           type="button"
           onClick={() => setZoom((z) => Math.max(30, z - 10))}
           className="p-1 rounded-full hover:bg-slate-100 text-slate-600 transition cursor-pointer"
-          title="Thu nhỏ (hoặc lăn chuột)"
+          title="Thu nhỏ"
         >
           <ZoomOut className="w-4 h-4" />
         </button>
@@ -224,21 +258,21 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
           step="5"
           value={zoom}
           onChange={(e) => setZoom(parseInt(e.target.value))}
-          className="w-24 accent-blue-600 cursor-pointer"
+          className="w-20 accent-blue-600 cursor-pointer"
         />
 
         <button
           type="button"
           onClick={() => setZoom((z) => Math.min(150, z + 10))}
           className="p-1 rounded-full hover:bg-slate-100 text-slate-600 transition cursor-pointer"
-          title="Phóng to (hoặc lăn chuột)"
+          title="Phóng to"
         >
           <ZoomIn className="w-4 h-4" />
         </button>
 
         <span className="font-mono font-bold text-slate-800 w-10 text-right">{zoom}%</span>
 
-        <div className="w-px h-4 bg-slate-200 mx-1" />
+        <div className="w-px h-4 bg-slate-200 mx-0.5" />
 
         {/* Undo / Redo Buttons */}
         <div className="flex items-center gap-1 bg-slate-100/90 rounded-lg p-0.5 border border-slate-200">
@@ -248,7 +282,7 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
             onClick={onUndo}
             disabled={!canUndo}
             className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-bold text-slate-700 hover:bg-white disabled:opacity-35 disabled:hover:bg-transparent transition active:scale-95 cursor-pointer disabled:cursor-not-allowed"
-            title="Hoàn tác bước trước đó (Ctrl + Z)"
+            title="Hoàn tác (Ctrl + Z)"
           >
             <Undo2 className="w-3.5 h-3.5 text-blue-600" />
             <span>Hoàn tác {historyCount > 0 ? `(${historyCount})` : ''}</span>
@@ -260,30 +294,115 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
             onClick={onRedo}
             disabled={!canRedo}
             className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-bold text-slate-700 hover:bg-white disabled:opacity-35 disabled:hover:bg-transparent transition active:scale-95 cursor-pointer disabled:cursor-not-allowed"
-            title="Làm lại bước vừa hoàn tác (Ctrl + Y hoặc Ctrl + Shift + Z)"
+            title="Làm lại (Ctrl + Y)"
           >
             <Redo2 className="w-3.5 h-3.5 text-indigo-600" />
             <span>Làm lại</span>
           </button>
         </div>
 
-        <div className="w-px h-4 bg-slate-200 mx-1" />
+        <div className="w-px h-4 bg-slate-200 mx-0.5" />
+
+        {/* Ruler & Grid Toggles */}
+        <button
+          type="button"
+          onClick={() => setShowRuler(!showRuler)}
+          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer border ${
+            showRuler
+              ? 'bg-amber-100/80 border-amber-300 text-amber-800'
+              : 'bg-slate-100 hover:bg-slate-200/80 border-slate-200 text-slate-700'
+          }`}
+          title="Bật/tắt thước đo milimet (mm)"
+        >
+          <Ruler className="w-3.5 h-3.5" />
+          <span>Thước đo</span>
+        </button>
 
         <button
           type="button"
-          onClick={() => setZoom(70)}
-          className="px-2 py-0.5 rounded-md hover:bg-slate-100 text-[11px] font-semibold text-slate-600 transition cursor-pointer"
+          onClick={() => setShowGrid(!showGrid)}
+          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer border ${
+            showGrid
+              ? 'bg-blue-100/80 border-blue-300 text-blue-800'
+              : 'bg-slate-100 hover:bg-slate-200/80 border-slate-200 text-slate-700'
+          }`}
+          title="Bật/tắt lưới căn lề mm"
         >
-          Mặc định (70%)
+          <Grid className="w-3.5 h-3.5" />
+          <span>Lưới mm</span>
         </button>
+
+        {/* Fullscreen Zen Mode */}
         <button
           type="button"
-          onClick={() => setZoom(100)}
-          className="px-2 py-0.5 rounded-md hover:bg-slate-100 text-[11px] font-semibold text-slate-600 transition cursor-pointer"
+          onClick={toggleFullscreen}
+          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 border border-slate-200 transition cursor-pointer"
+          title={isFullscreen ? 'Thoát toàn màn hình' : 'Chế độ toàn màn hình Zen'}
         >
-          100%
+          {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+        </button>
+
+        {/* Shortcuts Help */}
+        <button
+          type="button"
+          onClick={() => setShowHelp(!showHelp)}
+          className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 border border-blue-200 transition cursor-pointer"
+          title="Phím tắt & mẹo thao tác"
+        >
+          <HelpCircle className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Shortcuts & Tips Modal Drawer */}
+      {showHelp && (
+        <div className="no-print absolute top-16 right-4 z-40 bg-white/98 backdrop-blur-md p-4 rounded-2xl shadow-xl border border-slate-200 w-80 text-xs text-slate-700 space-y-2.5 animate-in fade-in zoom-in-95">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span className="font-bold text-slate-900 flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              Mẹo & Phím tắt nhanh
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowHelp(false)}
+              className="text-slate-400 hover:text-slate-600 font-bold px-1.5 py-0.5 rounded cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+          <ul className="space-y-2 text-[11px] text-slate-600">
+            <li className="flex items-start gap-2">
+              <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-slate-800 shrink-0">
+                Ctrl + Z / Y
+              </span>
+              <span>Hoàn tác / Làm lại thao tác gần nhất</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-slate-800 shrink-0">
+                Ctrl + V
+              </span>
+              <span>Dán ảnh trực tiếp từ Zalo/Clipboard</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-slate-800 shrink-0">
+                Ctrl + P
+              </span>
+              <span>Mở hộp thoại in ấn tiêu chuẩn A4</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-slate-800 shrink-0">
+                Kéo ảnh
+              </span>
+              <span>Kéo rê ảnh trên trang A4 để chỉnh tâm; kéo biểu tượng ⠿ để hoán đổi chỗ</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-slate-800 shrink-0">
+                Nhấp đúp
+              </span>
+              <span>Nhấp đúp ảnh trên trang để mở bộ lọc màu & cắt góc chi tiết</span>
+            </li>
+          </ul>
+        </div>
+      )}
 
       {/* Pages Container with Zoom scaling */}
       <div className="print-area-wrapper flex flex-col items-center w-full py-6 pb-24">
@@ -307,110 +426,172 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
             }}
             className="flex flex-col items-center gap-8 transition-transform duration-75"
           >
-            {pages.map((page) => (
-              <div
-                key={`page-${page.pageNumber}`}
-                id={`a4-page-${page.pageNumber}`}
-                className="a4-page-sheet relative bg-white shadow-xl rounded-xs border border-slate-300/60 overflow-hidden"
-                style={{
-                  width: `${pageW_mm}mm`,
-                  height: `${pageH_mm}mm`,
-                }}
-              >
-                {/* Page Number Watermark (Hidden in Print) */}
-                <div className="no-print absolute top-2 right-3 z-30 pointer-events-none bg-slate-900/70 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs">
-                  Trang {page.pageNumber} / {pages.length} (A4 {isLandscape ? 'Ngang' : 'Dọc'})
-                </div>
+            {pages.map((page) => {
+              const efficiency = calculateEfficiency(page);
 
-                {/* Printable Margin Guideline (Subtle dashed, hidden in print) */}
+              return (
                 <div
-                  className="no-print absolute border border-blue-200/40 pointer-events-none z-10"
+                  key={`page-${page.pageNumber}`}
+                  id={`a4-page-${page.pageNumber}`}
+                  className="a4-page-sheet relative bg-white shadow-xl rounded-xs border border-slate-300/60 overflow-hidden"
                   style={{
-                    left: `${settings.margin}mm`,
-                    top: `${settings.margin}mm`,
-                    width: `${pageW_mm - settings.margin * 2}mm`,
-                    height: `${pageH_mm - settings.margin * 2}mm`,
+                    width: `${pageW_mm}mm`,
+                    height: `${pageH_mm}mm`,
                   }}
-                />
+                >
+                  {/* Top Ruler Overlay (mm) */}
+                  {showRuler && (
+                    <div className="no-print absolute top-0 left-0 right-0 h-4 bg-amber-50/90 border-b border-amber-300/60 z-30 pointer-events-none flex text-[8px] font-mono text-amber-900 select-none overflow-hidden">
+                      {Array.from({ length: Math.ceil(pageW_mm / 10) + 1 }).map((_, idx) => (
+                        <div
+                          key={`ruler-top-${idx}`}
+                          className="relative border-r border-amber-300/70 shrink-0 flex items-end pl-0.5 pb-0.5"
+                          style={{ width: '10mm', height: '100%' }}
+                        >
+                          {idx * 10 > 0 && <span>{idx * 10}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-                {/* Placed Photo Items */}
-                {page.items.map((item) => {
-                  const actualCropW = item.cropW / (item.scale || 1);
-                  const actualCropH = item.cropH / (item.scale || 1);
-                  const percentW = (item.imgWidth / actualCropW) * 100;
-                  const percentH = (item.imgHeight / actualCropH) * 100;
-                  const percentX = (-item.cropX / actualCropW) * 100;
-                  const percentY = (-item.cropY / actualCropH) * 100;
+                  {/* Left Ruler Overlay (mm) */}
+                  {showRuler && (
+                    <div className="no-print absolute top-0 left-0 bottom-0 w-4 bg-amber-50/90 border-r border-amber-300/60 z-30 pointer-events-none flex flex-col text-[8px] font-mono text-amber-900 select-none overflow-hidden">
+                      {Array.from({ length: Math.ceil(pageH_mm / 10) + 1 }).map((_, idx) => (
+                        <div
+                          key={`ruler-left-${idx}`}
+                          className="relative border-b border-amber-300/70 shrink-0 flex items-start pl-0.5 pt-0.5"
+                          style={{ height: '10mm', width: '100%' }}
+                        >
+                          {idx * 10 > 0 && <span>{idx * 10}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-                  const isCircle = item.shape === 'circle';
-                  const isHeart = item.shape === 'heart';
-                  const isDraggingThis = draggedPhotoId === item.id;
-                  const isDragOverThis = dragOverPhotoId === item.id;
-
-                  return (
+                  {/* Grid mm Overlay */}
+                  {showGrid && (
                     <div
-                      key={`placed-${item.id}-${item.instanceIndex}`}
-                      id={`img-box-${item.id}-${item.instanceIndex}`}
-                      draggable={true}
-                      onDragStart={(e) => handleDragStart(e, item)}
-                      onDragOver={(e) => handleDragOver(e, item)}
-                      onDragLeave={(e) => handleDragLeave(e, item)}
-                      onDrop={(e) => handleDrop(e, item)}
-                      onDragEnd={handleDragEnd}
-                      onMouseDown={(e) => handlePhotoMouseDown(e, item)}
-                      onDoubleClick={() => onOpenCropModal(item)}
-                      title="Kéo thả để đổi vị trí ảnh • Kéo chuột trên ảnh để dịch tâm • Nhấp đúp để chỉnh chi tiết"
+                      className="no-print absolute inset-0 pointer-events-none z-10 opacity-30"
                       style={{
-                        position: 'absolute',
-                        left: `${item.x}mm`,
-                        top: `${item.y}mm`,
-                        width: `${item.w}mm`,
-                        height: `${item.h}mm`,
+                        backgroundImage: `linear-gradient(to right, #3b82f6 1px, transparent 1px), linear-gradient(to bottom, #3b82f6 1px, transparent 1px)`,
+                        backgroundSize: '10mm 10mm',
                       }}
-                      className={`overflow-hidden select-none cursor-grab active:cursor-grabbing group/box transition-all ${
-                        isCircle ? 'shape-circle' : isHeart ? 'shape-heart' : ''
-                      } ${settings.cutLines ? 'cut-lines-box' : ''} ${
-                        isDraggingThis ? 'opacity-30 scale-95 ring-2 ring-blue-500' : ''
-                      } ${
-                        isDragOverThis
-                          ? 'ring-4 ring-emerald-500 ring-offset-2 scale-105 z-30 shadow-lg'
-                          : ''
+                    />
+                  )}
+
+                  {/* Page Status Badges (Hidden in Print) */}
+                  <div className="no-print absolute top-2 right-3 z-30 pointer-events-none flex items-center gap-2">
+                    {/* Efficiency Badge */}
+                    <div
+                      className={`text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs flex items-center gap-1 ${
+                        efficiency >= 80
+                          ? 'bg-emerald-600/90'
+                          : efficiency >= 50
+                          ? 'bg-blue-600/90'
+                          : 'bg-slate-800/80'
                       }`}
                     >
-                      {/* Image Content */}
-                      <img
-                        src={item.previewSrc || item.originalSrc}
-                        alt={item.name}
-                        draggable={false}
-                        decoding="async"
-                        className="absolute max-w-none pointer-events-none transition-none"
-                        style={{
-                          width: `${percentW}%`,
-                          height: `${percentH}%`,
-                          left: `${percentX}%`,
-                          top: `${percentY}%`,
-                        }}
-                      />
-
-                      {/* Drag & Reorder Grip Handle (Top Left, visible on hover) */}
-                      <div
-                        className="no-print drag-reorder-handle opacity-0 group-hover/box:opacity-100 transition-opacity absolute top-1 left-1 bg-slate-900/80 backdrop-blur-xs text-white p-1 rounded cursor-grab active:cursor-grabbing z-20 flex items-center shadow-xs"
-                        title="Kéo biểu tượng này để đổi vị trí sang bức ảnh khác"
-                      >
-                        <GripHorizontal className="w-3 h-3 text-slate-200" />
-                      </div>
-
-                      {/* Hover Info Tag (Bottom Right, Hidden in Print) */}
-                      <div className="no-print opacity-0 group-hover/box:opacity-100 transition-opacity absolute bottom-1 right-1 bg-black/65 backdrop-blur-xs text-white text-[9px] font-mono px-1 py-0.5 rounded pointer-events-none flex items-center gap-0.5 z-20">
-                        <span>
-                          {item.w / 10}x{item.h / 10}cm
-                        </span>
-                      </div>
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>{efficiency}% diện tích</span>
                     </div>
-                  );
-                })}
-              </div>
-            ))}
+
+                    {/* Page Number */}
+                    <div className="bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs">
+                      Trang {page.pageNumber} / {pages.length} (A4 {isLandscape ? 'Ngang' : 'Dọc'})
+                    </div>
+                  </div>
+
+                  {/* Printable Margin Guideline (Subtle dashed, hidden in print) */}
+                  <div
+                    className="no-print absolute border border-blue-200/40 pointer-events-none z-10"
+                    style={{
+                      left: `${settings.margin}mm`,
+                      top: `${settings.margin}mm`,
+                      width: `${pageW_mm - settings.margin * 2}mm`,
+                      height: `${pageH_mm - settings.margin * 2}mm`,
+                    }}
+                  />
+
+                  {/* Placed Photo Items */}
+                  {page.items.map((item) => {
+                    const actualCropW = item.cropW / (item.scale || 1);
+                    const actualCropH = item.cropH / (item.scale || 1);
+                    const percentW = (item.imgWidth / actualCropW) * 100;
+                    const percentH = (item.imgHeight / actualCropH) * 100;
+                    const percentX = (-item.cropX / actualCropW) * 100;
+                    const percentY = (-item.cropY / actualCropH) * 100;
+
+                    const isCircle = item.shape === 'circle';
+                    const isHeart = item.shape === 'heart';
+                    const isDraggingThis = draggedPhotoId === item.id;
+                    const isDragOverThis = dragOverPhotoId === item.id;
+
+                    return (
+                      <div
+                        key={`placed-${item.id}-${item.instanceIndex}`}
+                        id={`img-box-${item.id}-${item.instanceIndex}`}
+                        draggable={true}
+                        onDragStart={(e) => handleDragStart(e, item)}
+                        onDragOver={(e) => handleDragOver(e, item)}
+                        onDragLeave={(e) => handleDragLeave(e, item)}
+                        onDrop={(e) => handleDrop(e, item)}
+                        onDragEnd={handleDragEnd}
+                        onMouseDown={(e) => handlePhotoMouseDown(e, item)}
+                        onDoubleClick={() => onOpenCropModal(item)}
+                        title="Kéo thả để đổi vị trí ảnh • Kéo chuột trên ảnh để dịch tâm • Nhấp đúp để chỉnh chi tiết"
+                        style={{
+                          position: 'absolute',
+                          left: `${item.x}mm`,
+                          top: `${item.y}mm`,
+                          width: `${item.w}mm`,
+                          height: `${item.h}mm`,
+                        }}
+                        className={`overflow-hidden select-none cursor-grab active:cursor-grabbing group/box transition-all ${
+                          isCircle ? 'shape-circle' : isHeart ? 'shape-heart' : ''
+                        } ${settings.cutLines ? 'cut-lines-box' : ''} ${
+                          isDraggingThis ? 'opacity-30 scale-95 ring-2 ring-blue-500' : ''
+                        } ${
+                          isDragOverThis
+                            ? 'ring-4 ring-emerald-500 ring-offset-2 scale-105 z-30 shadow-lg'
+                            : ''
+                        }`}
+                      >
+                        {/* Image Content */}
+                        <img
+                          src={item.previewSrc || item.originalSrc}
+                          alt={item.name}
+                          draggable={false}
+                          decoding="async"
+                          className="absolute max-w-none pointer-events-none transition-none"
+                          style={{
+                            width: `${percentW}%`,
+                            height: `${percentH}%`,
+                            left: `${percentX}%`,
+                            top: `${percentY}%`,
+                          }}
+                        />
+
+                        {/* Drag & Reorder Grip Handle (Top Left, visible on hover) */}
+                        <div
+                          className="no-print drag-reorder-handle opacity-0 group-hover/box:opacity-100 transition-opacity absolute top-1 left-1 bg-slate-900/80 backdrop-blur-xs text-white p-1 rounded cursor-grab active:cursor-grabbing z-20 flex items-center shadow-xs"
+                          title="Kéo biểu tượng này để đổi vị trí sang bức ảnh khác"
+                        >
+                          <GripHorizontal className="w-3 h-3 text-slate-200" />
+                        </div>
+
+                        {/* Hover Info Tag (Bottom Right, Hidden in Print) */}
+                        <div className="no-print opacity-0 group-hover/box:opacity-100 transition-opacity absolute bottom-1 right-1 bg-black/65 backdrop-blur-xs text-white text-[9px] font-mono px-1 py-0.5 rounded pointer-events-none flex items-center gap-0.5 z-20">
+                          <span>
+                            {item.w / 10}x{item.h / 10}cm
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

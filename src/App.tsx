@@ -97,7 +97,10 @@ export default function App() {
       const isCtrlOrCmd = isMac ? e.metaKey : e.ctrlKey;
 
       if (isCtrlOrCmd && !e.altKey) {
-        if (e.key === 'z' || e.key === 'Z') {
+        if (e.key === 'p' || e.key === 'P') {
+          e.preventDefault();
+          handlePrint();
+        } else if (e.key === 'z' || e.key === 'Z') {
           e.preventDefault();
           if (e.shiftKey) {
             // Redo: Ctrl+Shift+Z
@@ -166,6 +169,20 @@ export default function App() {
   const handleUpdateSettings = useCallback((updates: Partial<LayoutSettings>) => {
     setSettings((prev) => ({ ...prev, ...updates }));
   }, []);
+
+  const handleMovePhoto = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= photos.length || toIndex >= photos.length) return;
+      setPhotos((prev) => {
+        const next = [...prev];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        return next;
+      });
+      addToast('info', 'Đã thay đổi thứ tự ảnh');
+    },
+    [photos.length, setPhotos, addToast]
+  );
 
   const handleReorderPhotos = useCallback(
     (sourceId: string, targetId: string) => {
@@ -313,6 +330,7 @@ export default function App() {
         customPresets={customPresets}
         onToast={addToast}
         smartCrop={settings.smartCrop}
+        onMovePhoto={handleMovePhoto}
       />
 
       {/* Column 2: Batch Actions / Tools Sidebar */}

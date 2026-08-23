@@ -11,6 +11,9 @@ import {
   Maximize2,
   FileImage,
   LayoutGrid,
+  Archive,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { LayoutSettings, ShapeType, SizePreset } from '../types';
 import { Uploader } from './Uploader';
@@ -24,11 +27,14 @@ interface SettingsSidebarProps {
   onAddPhotos: (photos: PhotoItem[]) => void;
   onPrint: () => void;
   onExport: (format: 'png' | 'jpeg') => void;
+  onExportZip?: () => void;
   isExporting: boolean;
   exportProgress: { current: number; total: number } | null;
   onToast: (type: 'success' | 'error' | 'info', text: string) => void;
   defaultSize: { width: number; height: number; shape: ShapeType };
   customPresets?: SizePreset[];
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
@@ -39,209 +45,249 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   onAddPhotos,
   onPrint,
   onExport,
+  onExportZip,
   isExporting,
   exportProgress,
   onToast,
   defaultSize,
   customPresets = [],
+  isCollapsed = false,
+  onToggleCollapse,
 }) => {
   return (
     <aside
       id="sidebar"
-      className="no-print w-80 shrink-0 flex flex-col bg-white border-r border-slate-200 h-full overflow-hidden z-20 shadow-xs"
+      className={`no-print transition-all duration-300 flex flex-col bg-white border-r border-slate-200/90 h-full overflow-hidden z-20 shadow-xs ${
+        isCollapsed ? 'w-14 shrink-0' : 'w-80 shrink-0'
+      }`}
     >
       {/* Brand Header */}
-      <div className="px-3.5 py-3 border-b border-pink-100 bg-white sticky top-0 z-20 flex items-center gap-2.5">
-        <div className="bg-gradient-to-tr from-pink-600 to-rose-600 p-2.5 rounded-xl text-white shadow-sm shadow-pink-500/20 shrink-0">
-          <Printer className="w-5 h-5" />
-        </div>
-        <div className="flex-1 min-w-0 pr-0.5">
-          <h1 className="text-[16px] font-black text-pink-700 leading-snug tracking-tight whitespace-nowrap">
-            Dâu Dâu AutoPack Print
-          </h1>
-          <p className="text-[11px] text-pink-600/85 font-semibold">Dàn trang in ảnh A4 thông minh</p>
-        </div>
-      </div>
-
-      {/* Main Settings Body */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
-        {/* Page Stats & Orientation */}
-        <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-700">Tổng trang A4:</span>
-            <span className="bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-0.5 rounded-md text-xs font-bold font-mono">
-              {pageCount} trang
-            </span>
+      <div className="px-3.5 py-3 border-b border-pink-100 bg-white sticky top-0 z-20 flex items-center justify-between">
+        <div className="flex items-center gap-2.5 overflow-hidden">
+          <div className="bg-gradient-to-tr from-pink-600 to-rose-600 p-2 rounded-xl text-white shadow-sm shadow-pink-500/20 shrink-0">
+            <Printer className="w-5 h-5" />
           </div>
-
-          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-            <span className="text-[11px] font-semibold text-slate-600">Hướng giấy:</span>
-            <div className="flex bg-slate-100 p-0.5 rounded-lg text-xs font-medium">
-              <button
-                type="button"
-                onClick={() => onUpdateSettings({ paperOrientation: 'portrait' })}
-                className={`px-2.5 py-1 rounded-md transition ${
-                  settings.paperOrientation === 'portrait'
-                    ? 'bg-white text-blue-700 font-bold shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Khổ Dọc
-              </button>
-              <button
-                type="button"
-                onClick={() => onUpdateSettings({ paperOrientation: 'landscape' })}
-                className={`px-2.5 py-1 rounded-md transition ${
-                  settings.paperOrientation === 'landscape'
-                    ? 'bg-white text-blue-700 font-bold shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                Khổ Ngang
-              </button>
+          {!isCollapsed && (
+            <div className="flex-1 min-w-0 pr-0.5">
+              <h1 className="text-[15px] font-black text-pink-700 leading-snug tracking-tight whitespace-nowrap">
+                Dâu Dâu AutoPack
+              </h1>
+              <p className="text-[10.5px] text-pink-600/85 font-semibold">Dàn trang in ảnh A4 thông minh</p>
             </div>
-          </div>
-        </div>
-
-        {/* 1. Uploader Box (Tải ảnh vào trang) */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-2.5">
-          <div className="flex items-center gap-2 text-slate-800">
-            <FileImage className="w-4 h-4 text-blue-600" />
-            <h2 className="text-xs font-bold uppercase tracking-wide">Tải ảnh vào trang</h2>
-          </div>
-
-          <Uploader
-            onAddPhotos={onAddPhotos}
-            onToast={onToast}
-            defaultSize={defaultSize}
-            smartCrop={settings.smartCrop}
-            customPresets={customPresets}
-          />
-        </div>
-
-        {/* 2. General Settings (Cài đặt lề & khoảng cách) */}
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3.5">
-          <div className="flex items-center gap-2 text-slate-800">
-            <Settings2 className="w-4 h-4 text-blue-600" />
-            <h2 className="text-xs font-bold uppercase tracking-wide">Cài đặt lề & khoảng cách</h2>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-              <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">
-                Lề trang (mm)
-              </label>
-              <input
-                type="number"
-                min="0"
-                max="25"
-                value={settings.margin}
-                onChange={(e) => onUpdateSettings({ margin: Math.max(0, parseInt(e.target.value) || 0) })}
-                className="w-full bg-white border border-slate-300 rounded-md px-2 py-1 text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-blue-400"
-              />
-            </div>
-
-            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-              <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">
-                K.Cách ảnh (mm)
-              </label>
-              <input
-                type="number"
-                min="0"
-                max="20"
-                value={settings.gap}
-                onChange={(e) => onUpdateSettings({ gap: Math.max(0, parseInt(e.target.value) || 0) })}
-                className="w-full bg-white border border-slate-300 rounded-md px-2 py-1 text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-blue-400"
-              />
-            </div>
-          </div>
-
-          {/* 1. Tối ưu ghép khít */}
-          <label className="flex items-center justify-between p-2.5 bg-emerald-50/60 rounded-lg border border-emerald-200 cursor-pointer hover:bg-emerald-50 transition select-none">
-            <div className="flex items-center gap-2">
-              <LayoutGrid className="w-4 h-4 text-emerald-600" />
-              <span className="text-xs font-semibold text-emerald-900">Tối ưu ghép khít</span>
-            </div>
-            <input
-              type="checkbox"
-              checked={Boolean(settings.autoNesting)}
-              onChange={(e) => onUpdateSettings({ autoNesting: e.target.checked })}
-              className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
-            />
-          </label>
-
-          {/* 2. Nét đứt dọc giấy */}
-          <label className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100/80 transition select-none">
-            <div className="flex items-center gap-2">
-              <Scissors className="w-4 h-4 text-slate-600" />
-              <span className="text-xs font-semibold text-slate-800">Nét đứt dọc giấy</span>
-            </div>
-            <input
-              type="checkbox"
-              checked={settings.cutLines}
-              onChange={(e) => onUpdateSettings({ cutLines: e.target.checked })}
-              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-            />
-          </label>
-
-          {/* 3. Trong tâm khuôn mặt */}
-          <label className="flex items-center justify-between p-2.5 bg-purple-50/60 rounded-lg border border-purple-100 cursor-pointer hover:bg-purple-50 transition select-none">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-purple-600" />
-              <span className="text-xs font-semibold text-purple-900">Trong tâm khuôn mặt</span>
-            </div>
-            <input
-              type="checkbox"
-              checked={settings.smartCrop}
-              onChange={(e) => onUpdateSettings({ smartCrop: e.target.checked })}
-              className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-            />
-          </label>
+          )}
         </div>
       </div>
+
+      {isCollapsed ? (
+        <div className="flex-1 flex flex-col items-center py-4 gap-3 text-slate-400">
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition"
+            title="Mở rộng bảng cài đặt"
+          >
+            <Settings2 className="w-5 h-5 text-blue-600" />
+          </button>
+        </div>
+      ) : (
+        /* Main Settings Body */
+        <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 bg-slate-50/50">
+          {/* Page Stats & Orientation (Pastel Sky) */}
+          <div className="bg-sky-50/70 rounded-xl p-3.5 border border-sky-200/90 shadow-2xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-sky-950">Tổng trang A4:</span>
+              <span className="bg-white text-sky-700 border border-sky-300 px-2.5 py-0.5 rounded-md text-xs font-black font-mono shadow-2xs">
+                {pageCount} trang
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-sky-200/80">
+              <span className="text-[11px] font-bold text-sky-900">Hướng giấy:</span>
+              <div className="flex bg-white p-0.5 rounded-lg text-xs font-semibold border border-sky-200">
+                <button
+                  type="button"
+                  onClick={() => onUpdateSettings({ paperOrientation: 'portrait' })}
+                  className={`px-2.5 py-1 rounded-md transition ${
+                    settings.paperOrientation === 'portrait'
+                      ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                      : 'text-slate-600 hover:text-sky-900'
+                  }`}
+                >
+                  Khổ Dọc
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUpdateSettings({ paperOrientation: 'landscape' })}
+                  className={`px-2.5 py-1 rounded-md transition ${
+                    settings.paperOrientation === 'landscape'
+                      ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                      : 'text-slate-600 hover:text-sky-900'
+                  }`}
+                >
+                  Khổ Ngang
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 1. Uploader Box (Tải ảnh vào trang) (Pastel Rose) */}
+          <div className="bg-rose-50/60 rounded-xl p-3.5 border border-rose-200/80 shadow-2xs space-y-2.5">
+            <div className="flex items-center gap-1.5 text-rose-950 font-bold">
+              <FileImage className="w-4 h-4 text-rose-600" />
+              <h2 className="text-xs uppercase tracking-wide">Tải ảnh vào trang</h2>
+            </div>
+
+            <Uploader
+              onAddPhotos={onAddPhotos}
+              onToast={onToast}
+              defaultSize={defaultSize}
+              smartCrop={settings.smartCrop}
+              customPresets={customPresets}
+            />
+          </div>
+
+          {/* 2. General Settings (Cài đặt lề & khoảng cách) (Pastel Slate/Indigo) */}
+          <div className="bg-indigo-50/50 rounded-xl p-3.5 border border-indigo-200/80 shadow-2xs space-y-3">
+            <div className="flex items-center gap-1.5 text-indigo-950 font-bold">
+              <Settings2 className="w-4 h-4 text-indigo-600" />
+              <h2 className="text-xs uppercase tracking-wide">Cài đặt lề & khoảng cách</h2>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-white p-2.5 rounded-lg border border-indigo-200 shadow-2xs">
+                <label className="block text-[10px] text-indigo-900 font-bold uppercase mb-1">
+                  Lề trang (mm)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="25"
+                  value={settings.margin}
+                  onChange={(e) => onUpdateSettings({ margin: Math.max(0, parseInt(e.target.value) || 0) })}
+                  className="w-full bg-indigo-50/30 border border-indigo-200 rounded-md px-2 py-1 text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-400"
+                />
+              </div>
+
+              <div className="bg-white p-2.5 rounded-lg border border-indigo-200 shadow-2xs">
+                <label className="block text-[10px] text-indigo-900 font-bold uppercase mb-1">
+                  K.Cách ảnh (mm)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="20"
+                  value={settings.gap}
+                  onChange={(e) => onUpdateSettings({ gap: Math.max(0, parseInt(e.target.value) || 0) })}
+                  className="w-full bg-indigo-50/30 border border-indigo-200 rounded-md px-2 py-1 text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-400"
+                />
+              </div>
+            </div>
+
+            {/* 1. Tối ưu ghép khít */}
+            <label className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-emerald-300 cursor-pointer hover:bg-emerald-50/60 transition select-none shadow-2xs">
+              <div className="flex items-center gap-2">
+                <LayoutGrid className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-bold text-emerald-950">Tối ưu ghép khít (Nesting)</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={Boolean(settings.autoNesting)}
+                onChange={(e) => onUpdateSettings({ autoNesting: e.target.checked })}
+                className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+              />
+            </label>
+
+            {/* 2. Nét đứt dọc giấy */}
+            <label className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-slate-300 cursor-pointer hover:bg-slate-50 transition select-none shadow-2xs">
+              <div className="flex items-center gap-2">
+                <Scissors className="w-4 h-4 text-slate-600" />
+                <span className="text-xs font-bold text-slate-800">Nét đứt đường cắt ảnh</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.cutLines}
+                onChange={(e) => onUpdateSettings({ cutLines: e.target.checked })}
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+              />
+            </label>
+
+            {/* 3. Trọng tâm khuôn mặt */}
+            <label className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-purple-300 cursor-pointer hover:bg-purple-50/60 transition select-none shadow-2xs">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                <span className="text-xs font-bold text-purple-950">Trọng tâm khuôn mặt</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.smartCrop}
+                onChange={(e) => onUpdateSettings({ smartCrop: e.target.checked })}
+                className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 cursor-pointer"
+              />
+            </label>
+          </div>
+        </div>
+      )}
 
       {/* Export & Print Action Footer */}
-      <div className="p-4 border-t border-slate-200 bg-white space-y-2 sticky bottom-0 z-20 shadow-lg">
-        {isExporting && exportProgress && (
-          <div className="text-[11px] text-blue-600 font-semibold text-center pb-1">
-            Đang xuất trang {exportProgress.current} / {exportProgress.total}...
+      {!isCollapsed && (
+        <div className="p-3.5 border-t border-slate-200 bg-white space-y-2 sticky bottom-0 z-20 shadow-lg">
+          {isExporting && exportProgress && (
+            <div className="text-[11px] text-pink-600 font-bold text-center pb-0.5 animate-pulse">
+              Đang xử lý trang {exportProgress.current} / {exportProgress.total}...
+            </div>
+          )}
+
+          {/* Non-black vibrant Print Button */}
+          <button
+            type="button"
+            id="btn-print"
+            onClick={onPrint}
+            disabled={totalPhotos === 0 || isExporting}
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-pink-600 via-rose-600 to-pink-700 hover:from-pink-700 hover:to-rose-800 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md shadow-pink-500/20 active:scale-95 cursor-pointer"
+          >
+            <Printer className="w-4 h-4" />
+            <span>In ngay (Print A4)</span>
+          </button>
+
+          {/* Export PNG & JPG Buttons */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              id="btn-export-png"
+              onClick={() => onExport('png')}
+              disabled={totalPhotos === 0 || isExporting}
+              className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-2 rounded-xl text-xs transition shadow-xs active:scale-95 cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Xuất PNG</span>
+            </button>
+            <button
+              type="button"
+              id="btn-export-jpg"
+              onClick={() => onExport('jpeg')}
+              disabled={totalPhotos === 0 || isExporting}
+              className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-2 rounded-xl text-xs transition shadow-xs active:scale-95 cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Xuất JPG</span>
+            </button>
           </div>
-        )}
 
-        <button
-          type="button"
-          id="btn-print"
-          onClick={onPrint}
-          disabled={totalPhotos === 0 || isExporting}
-          className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-black disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-sm active:scale-95"
-        >
-          <Printer className="w-4 h-4" />
-          <span>In ngay (Print A4)</span>
-        </button>
-
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            id="btn-export-png"
-            onClick={() => onExport('png')}
-            disabled={totalPhotos === 0 || isExporting}
-            className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-2 rounded-xl text-xs transition shadow-sm active:scale-95"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Xuất PNG</span>
-          </button>
-          <button
-            type="button"
-            id="btn-export-jpg"
-            onClick={() => onExport('jpeg')}
-            disabled={totalPhotos === 0 || isExporting}
-            className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-2 rounded-xl text-xs transition shadow-sm active:scale-95"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Xuất JPG</span>
-          </button>
+          {/* ZIP Batch Export Button */}
+          {onExportZip && (
+            <button
+              type="button"
+              id="btn-export-zip"
+              onClick={onExportZip}
+              disabled={totalPhotos === 0 || isExporting}
+              className="w-full flex items-center justify-center gap-1.5 bg-amber-50 hover:bg-amber-100 disabled:opacity-50 text-amber-900 border border-amber-300 font-bold py-1.5 rounded-xl text-xs transition shadow-2xs active:scale-95 cursor-pointer"
+            >
+              <Archive className="w-3.5 h-3.5 text-amber-700" />
+              <span>Tải trọn bộ ZIP ({pageCount} trang)</span>
+            </button>
+          )}
         </div>
-      </div>
+      )}
     </aside>
   );
 };
