@@ -45,19 +45,48 @@ function openDatabase(): Promise<IDBDatabase> {
 }
 
 /**
- * Convert base64 / dataUrl to Blob
+ * Convert base64 / dataUrl to Blob safely
  */
 export function dataURLToBlob(dataurl: string): Blob {
-  const arr = dataurl.split(',');
-  const mimeMatch = arr[0].match(/:(.*?);/);
-  const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8ClampedArray(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
+  if (!dataurl) return new Blob([], { type: 'image/jpeg' });
+  try {
+    const arr = dataurl.split(',');
+    if (arr.length < 2) {
+      return new Blob([], { type: 'image/jpeg' });
+    }
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  } catch (err) {
+    console.warn('Error in dataURLToBlob:', err);
+    return new Blob([], { type: 'image/jpeg' });
   }
-  return new Blob([u8arr], { type: mime });
+}
+
+/**
+ * Universal src to Blob converter (supports data:, blob:, http: urls)
+ */
+export async function srcToBlob(src: string): Promise<Blob> {
+  if (!src) return new Blob([], { type: 'image/jpeg' });
+
+  if (src.startsWith('data:')) {
+    const blob = dataURLToBlob(src);
+    if (blob.size > 0) return blob;
+  }
+
+  try {
+    const res = await fetch(src);
+    return await res.blob();
+  } catch (err) {
+    console.warn('Fallback converting src to blob:', err);
+    return dataURLToBlob(src);
+  }
 }
 
 /**
@@ -281,9 +310,26 @@ export async function exportProjectToDaudauFile(
   const imgFolder = zip.folder('images');
   if (imgFolder) {
     for (const photo of photos) {
-      if (photo.originalSrc) {
-        const blob = dataURLToBlob(photo.originalSrc);
-        imgFolder.file(`${photo.id}.jpg`, blob);
+      const src = photo.originalSrc || photo.previewSrc;
+      if (!src) continue;
+
+      try {
+        if (src.startsWith('data:')) {
+          const parts = src.split(',');
+          if (parts.length >= 2) {
+            const base64Data = parts[1];
+            imgFolder.file(`${photo.id}.jpg`, base64Data, { base64: true });
+            continue;
+          }
+        }
+
+        // For blob: or http: URLs
+        const blob = await srcToBlob(src);
+        if (blob && blob.size > 0) {
+          imgFolder.file(`${photo.id}.jpg`, blob);
+        }
+      } catch (err) {
+        console.warn(`Could not add image ${photo.id} to project archive:`, err);
       }
     }
   }
@@ -297,12 +343,14 @@ export async function exportProjectToDaudauFile(
 
   const blobUrl = URL.createObjectURL(zipBlob);
   const link = document.createElement('a');
-  const safeName = projectName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+  const safeName = (projectName || 'Du_An_In_Anh').replace(/[^a-zA-Z0-9_\-]/g, '_');
   link.download = `${safeName}_${Date.now()}.daudau`;
   link.href = blobUrl;
+  document.body.appendChild(link);
   link.click();
+  document.body.removeChild(link);
 
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 20000);
 }
 
 /**
@@ -332,18 +380,26 @@ export async function importProjectFromDaudauFile(file: File): Promise<{
     const imageFile =
       zip.file(`images/${imgFileName}`) ||
       zip.file(imgFileName) ||
+      zip.file(`images/${p.id}.jpg`) ||
+      zip.file(`${p.id}.jpg`) ||
       zip.file(`images/${p.id}.png`) ||
-      zip.file(`${p.id}.png`);
+      zip.file(`${p.id}.png`) ||
+      zip.file(`images/${p.id}.jpeg`) ||
+      zip.file(`${p.id}.jpeg`);
 
     if (imageFile) {
-      const imgBlob = await imageFile.async('blob');
-      const dataUrl = await blobToDataURL(imgBlob);
-      const { fileName, ...cleanMeta } = p;
-      restoredPhotos.push({
-        ...cleanMeta,
-        originalSrc: dataUrl,
-        previewSrc: dataUrl,
-      });
+      try {
+        const base64 = await imageFile.async('base64');
+        const dataUrl = `data:image/jpeg;base64,${base64}`;
+        const { fileName, ...cleanMeta } = p;
+        restoredPhotos.push({
+          ...cleanMeta,
+          originalSrc: dataUrl,
+          previewSrc: dataUrl,
+        });
+      } catch (err) {
+        console.warn(`Could not extract image ${imgFileName}:`, err);
+      }
     }
   }
 
