@@ -1,9 +1,11 @@
-// Image Enhancement Engine using HTML5 Canvas
+// Image Enhancement Engine using Web Worker & HTML5 Canvas
 // Optimizes low-res / Zalo compressed images for high-quality A4 printing:
 // 1. Unsharp Masking (Sharpen edge details like eyes, text, contours)
 // 2. Adaptive Contrast & Auto Levels (Brighten underexposed / flat compressed photos)
 // 3. De-blocking / Subtle Edge-preserving Smooth (Reduces JPEG blockiness)
 // 4. Print Color Boost (Subtle saturation & vibrance so ink print looks vivid)
+
+import { enhanceImageDataAsync } from '../workers/workerBridge';
 
 export interface EnhanceOptions {
   sharpenAmount?: number; // 0 to 1 (default ~0.45)
@@ -20,12 +22,13 @@ export async function enhanceImageQuality(
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => {
+    img.onload = async () => {
+      let canvas: HTMLCanvasElement | null = null;
       try {
         const width = img.naturalWidth || img.width;
         const height = img.naturalHeight || img.height;
 
-        const canvas = document.createElement('canvas');
+        canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -35,61 +38,29 @@ export async function enhanceImageQuality(
 
         // Draw original
         ctx.drawImage(img, 0, 0, width, height);
-
         const imgData = ctx.getImageData(0, 0, width, height);
-        const data = imgData.data;
 
-        const sharpen = options.sharpenAmount ?? 0.48;
-        const contrast = options.contrastAmount ?? 0.12;
-        const brightness = options.brightnessAmount ?? 0.04;
-        const vibrance = options.vibranceAmount ?? 0.16;
+        // Offload pixel manipulation (contrast + unsharp convolution) to Web Worker
+        const processedData = await enhanceImageDataAsync(imgData, options);
 
-        // Step 1: Color, Brightness, Contrast & Vibrance pass
-        // Pre-calculate contrast factor
-        const contrastFactor = (259 * (contrast * 100 + 255)) / (255 * (259 - contrast * 100));
-        const brightAdd = brightness * 255;
-
-        for (let i = 0; i < data.length; i += 4) {
-          let r = data[i];
-          let g = data[i + 1];
-          let b = data[i + 2];
-
-          // Brightness & Contrast
-          r = contrastFactor * (r + brightAdd - 128) + 128;
-          g = contrastFactor * (g + brightAdd - 128) + 128;
-          b = contrastFactor * (b + brightAdd - 128) + 128;
-
-          // Vibrance (boosts less-saturated colors more, protecting skin tones)
-          const max = Math.max(r, Math.max(g, b));
-          const avg = (r + g + b) / 3;
-          const sat = ((max - avg) / (max || 1));
-          const amt = (1 - sat) * vibrance;
-
-          if (r !== max) r += (max - r) * amt;
-          if (g !== max) g += (max - g) * amt;
-          if (b !== max) b += (max - b) * amt;
-
-          data[i] = Math.min(255, Math.max(0, r));
-          data[i + 1] = Math.min(255, Math.max(0, g));
-          data[i + 2] = Math.min(255, Math.max(0, b));
-        }
-
-        // Put adjusted base back
-        ctx.putImageData(imgData, 0, 0);
-
-        // Step 2: Unsharp Mask via Convoluted Laplacian or Fast Dual-Canvas High-Pass
-        if (sharpen > 0 && width > 10 && height > 10) {
-          const sharpenData = applyFastSharpen(ctx, width, height, sharpen);
-          ctx.putImageData(sharpenData, 0, 0);
-        }
-
+        ctx.putImageData(processedData, 0, 0);
         const enhancedSrc = canvas.toDataURL('image/jpeg', 0.96);
+
+        // Explicit canvas cleanup
+        canvas.width = 0;
+        canvas.height = 0;
+        canvas = null;
+
         resolve({
           enhancedSrc,
           originalWidth: width,
           originalHeight: height,
         });
       } catch (err) {
+        if (canvas) {
+          canvas.width = 0;
+          canvas.height = 0;
+        }
         reject(err);
       }
     };

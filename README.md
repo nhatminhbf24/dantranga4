@@ -11,14 +11,24 @@ autopack-print/
 ├── src/
 │   ├── components/
 │   │   ├── A4PreviewArea.tsx        # Vùng xem trước A4, thước đo mm, lưới căn lề, kéo chỉnh tâm ảnh
-│   │   ├── BatchToolsSidebar.tsx    # Thanh công cụ xử lý hàng loạt, bộ kích thước chuẩn, in ấn & xuất file
+│   │   ├── ActivationModal.tsx      # Modal khóa màn hình bảo vệ nội bộ bằng mã kích hoạt bảo mật
+│   │   ├── BatchToolsSidebar.tsx    # Thanh công cụ xử lý hàng loạt: Kích thước, Xoay 90°, Số lượng, Làm nét HD, Cân màu
 │   │   ├── CropModal.tsx            # Hộp thoại cắt cúp, xoay, lật, bộ lọc màu & chỉnh sáng chi tiết
 │   │   ├── CustomSizeModal.tsx      # Hộp thoại tạo & lưu kích thước in tùy chỉnh cá nhân
 │   │   ├── ImageListSidebar.tsx     # Danh sách ảnh đã tải lên, thay đổi số lượng, đánh giá nét DPI
+│   │   ├── RestoreSessionModal.tsx  # Hộp thoại khôi phục dự án sau khi tải lại/mất điện
+│   │   ├── SettingsSidebar.tsx      # Tùy chỉnh lề in, ghép khít (Nesting), nét đứt cắt, xuất PDF chuẩn in ấn
 │   │   └── Toast.tsx                # Thông báo nổi (Toasts) tương tác người dùng
+│   ├── workers/
+│   │   ├── pixelWorker.ts           # Web Worker chạy nền xử lý Unsharp Masking & cân chỉnh màu
+│   │   └── workerBridge.ts          # Cầu nối Promise-based & Zero-copy Transferable ArrayBuffer
 │   ├── utils/
-│   │   ├── imageUtils.ts            # Xử lý render Canvas 300 DPI, làm nét, chỉnh màu, nén & xuất ZIP
-│   │   └── packing.ts               # Thuật toán xếp ảnh tối ưu Shelf Packing trên khổ A4
+│   │   ├── pdfExport.ts             # Xuất file PDF nhiều trang chuẩn in ấn (300 DPI multi-page PDF)
+│   │   ├── projectStorage.ts        # Hệ thống lưu trữ 3 lớp: IndexedDB, .daudau bundle, Auto-save
+│   │   ├── imageUtils.ts            # Xử lý render Canvas 300 DPI, giải phóng RAM tuần tự
+│   │   ├── imageEnhancer.ts         # Công cụ tăng cường độ nét ảnh (Unsharp Masking Engine)
+│   │   ├── imageAdjustmentEngine.ts # Bộ lọc màu, sáng tối, tương phản, Highlights/Shadows
+│   │   └── packing.ts               # Thuật toán Guillotine Bin Packing ưu tiên đường cắt thẳng & Shelf Packing
 │   ├── types.ts                     # Định nghĩa kiểu dữ liệu TypeScript
 │   ├── App.tsx                      # Component chính điều phối luồng dữ liệu & phím tắt toàn cục
 │   ├── main.tsx                     # Entry point khởi chạy ứng dụng React
@@ -74,7 +84,8 @@ autopack-print/
 ---
 
 ### 4. 🖼️ Vùng xem trước A4 & Trải nghiệm in ấn tương tác cao
-- **Thuật toán Shelf Packing tối ưu**: Tự động xếp kín ảnh theo diện tích trang A4 (khổ Dọc hoặc Ngang).
+- **Thuật toán Guillotine Bin Packing ưu tiên đường cắt thẳng**: Khi bật *Tối ưu ghép khít (Nesting)*, hệ thống tự động tính toán phân chia các vùng tự do theo quy tắc cắt thẳng tắp (Guillotine Cuts) từ cạnh này sang cạnh kia của trang giấy, tối ưu diện tích và cực kỳ thuận tiện khi dùng bàn cắt/dao rọc giấy thủ công.
+- **Thuật toán Shelf Packing tự nhiên**: Xếp tuần tự theo thứ tự ban đầu của ảnh khi không bật Nesting.
 - **Đo lường hiệu suất giấy (% Efficiency)**: Hiển thị tỷ lệ diện tích sử dụng thực tế (ví dụ: *88% diện tích*) trên từng trang.
 - **Thước đo mm & Lưới căn lề**: Tích hợp thước đo milimet thực và lưới ô 10mm giúp căn chỉnh lề in chính xác.
 - **Kéo chỉnh tâm trực tiếp (Direct Pan)**: Kéo rê chuột trực tiếp trên từng bức ảnh trong trang A4 để chọn góc crop đẹp nhất (tỉ lệ 1:1 pixel).
@@ -85,21 +96,42 @@ autopack-print/
 
 ---
 
-### 5. 🎨 Bộ chỉnh sửa ảnh chuyên sâu (Crop & Filter Modal)
-- Khung cắt ảnh tự do hoặc khóa theo tỷ lệ in chuẩn.
-- Phóng to / Thu nhỏ (Scale Zoom từ 1.0x đến 3.0x).
-- Xoay tự do theo độ hoặc xoay nhanh 90°, lật ảnh ngang/dọc (Flip Horizontal/Vertical).
-- Tinh chỉnh thủ công: Độ sáng (Brightness), Độ tương phản (Contrast), Độ bão hòa màu (Saturation).
-- Bộ lọc màu nghệ thuật: *Tự nhiên, Đen trắng (B&W), Vintage/Sepia, Ấm áp (Warm), Lạnh (Cool), Tươi tắn (Vivid)*.
+### 5. 🎨 Bộ chỉnh sửa ảnh & Web Worker Engine
+- **Web Worker Background Threading**: Toàn bộ thuật toán nặng Unsharp Masking 3x3 convolution kernel, Auto Levels và cân chỉnh màu được chuyển sang chạy nền trên Web Worker với kỹ thuật **Zero-copy Transferable ArrayBuffer**, giữ cho giao diện luôn đạt 60 FPS mượt mà ngay cả khi xử lý hàng chục ảnh nặng.
+- **Cắt cúp & Tỷ lệ**: Khung cắt ảnh tự do hoặc khóa theo tỷ lệ in chuẩn.
+- **Phóng to / Thu nhỏ**: Scale Zoom từ 1.0x đến 3.0x mượt mà.
+- **Xoay & Lật**: Xoay tự do theo độ hoặc xoay nhanh 90°, lật ảnh ngang/dọc (Flip Horizontal/Vertical).
+- **Cân chỉnh ánh sáng & Màu sắc**: Nhiệt độ màu (Temperature), Sắc thái (Tint), Độ sáng, Tương phản, Vùng sáng (Highlights), Vùng tối (Shadows), Whites, Blacks, Độ rực (Vibrance) và Bão hòa màu (Saturation).
 - **Smart Portrait Crop**: Tự động lấy nét và canh giữa gương mặt khi xếp ảnh chân dung.
 
 ---
 
-### 6. 🖨️ In ấn & Xuất file chuyên nghiệp
+### 6. 🖨️ In ấn & Xuất file PDF chuẩn in ấn (Quản lý RAM tối ưu)
 - **In trực tiếp chuẩn A4 (`Ctrl + P`)**: Được tối ưu bằng CSS `@media print` giúp in chính xác kích thước thật, không bị lệch lề, không viền thừa trình duyệt.
 - **Xuất ảnh siêu nét 300 DPI**: Kết xuất từng trang A4 thành file PNG / JPG chất lượng in ấn độ phân giải cao.
-- **Tải trọn bộ file ZIP**: Xuất toàn bộ các trang A4 thành 1 file nén `.zip` tiện lợi chỉ trong vài giây.
+- **Xuất file PDF nhiều trang (Multi-page PDF Export)**: Tích hợp engine tạo PDF độ phân giải in 300 DPI trực tiếp từ trình duyệt, gom toàn bộ các trang A4 thành một tệp PDF duy nhất sẵn sàng chuyển sang máy in kỹ thuật số / offset.
+- **Tuần tự hóa bộ nhớ (Sequential Memory Disposal)**: Tự động tuần tự hóa và giải phóng bộ nhớ GPU Canvas (`canvas.width = 0; canvas.height = 0`) ngay sau mỗi trang trong quá trình render PDF/ảnh, đảm bảo xuất hàng chục trang 300 DPI mà không bao giờ bị tràn RAM hay đơ trình duyệt.
 - **Hệ thống Hoàn tác (Undo `Ctrl+Z` / Redo `Ctrl+Y`)**: Lưu trữ lịch sử thao tác, cho phép quay lại bước trước an toàn.
+
+---
+
+### 7. 💾 Hệ thống Lưu trữ & Bảo vệ Dự án 3 Lớp (Project Session Engine)
+- **Lớp 1 - Chống tải lại / Tắt tab đột ngột (`beforeunload`)**: Tự động chặn và hiện popup cảnh báo xác nhận khi người dùng vô tình bấm `F5`, `Ctrl + W` hoặc đóng trình duyệt khi đang có dự án dở dang.
+- **Lớp 2 - Tự động lưu ngầm IndexedDB đa tầng (Auto-save)**:
+  - `project_meta`: Tách riêng JSON cấu hình (tọa độ, kích thước, crop, filter) lưu dạng Debounce 500ms siêu nhẹ.
+  - `project_blobs`: Lưu nhị phân hình ảnh gốc độc lập, chỉ ghi khi thêm hoặc xóa ảnh để bảo vệ ổ cứng và triệt tiêu nghẽn I/O.
+  - **Khôi phục thông minh**: Khi mở lại trang sau sự cố mất điện hay crash trình duyệt, hệ thống tự động hiển thị Modal khôi phục nguyên vẹn 100% phiên làm việc trước đó.
+- **Lớp 3 - Định dạng tệp dự án độc quyền `.daudau` (Portable Bundle)**:
+  - Đóng gói toàn bộ cấu hình `project.json` và thư mục ảnh gốc `images/` vào file nén `.daudau` (chuẩn ZIP).
+  - Phím tắt nhanh `Ctrl + S`: Lưu và xuất file `.daudau` ngay lập tức để lưu vào USB hoặc gửi cho thợ in.
+  - Người dùng hoặc tiệm in chỉ cần kéo thả hoặc chọn file `.daudau` vào webapp để nạp lại đầy đủ các trang in và kích thước trong tích tắc.
+
+---
+
+### 8. 🔒 Khóa màn hình & Mã kích hoạt bảo vệ nội bộ
+- **Bảo mật truy cập**: Tích hợp Modal khóa bảo vệ toàn màn hình khi người dùng mới truy cập ứng dụng.
+- **Mã kích hoạt nhanh**: Sử dụng mã bí mật chung (`0798408406`) để xác thực người dùng nội bộ/khách hàng hợp lệ.
+- **Ghi nhớ thông minh**: Tự động lưu trạng thái mở khóa vào `localStorage` (`daudau_unlocked = 'true'`), giúp người dùng không phải nhập lại mã trong các lần truy cập tiếp theo.
 
 ---
 
@@ -107,6 +139,7 @@ autopack-print/
 
 | Phím tắt | Chức năng |
 | :--- | :--- |
+| `Ctrl + S` / `Cmd + S` | Lưu và đóng gói dự án ra file `.daudau` mang đi |
 | `Ctrl + P` / `Cmd + P` | Mở hộp thoại in ấn tiêu chuẩn A4 |
 | `Ctrl + V` / `Cmd + V` | Dán ảnh trực tiếp từ Clipboard / Zalo |
 | `Ctrl + Z` / `Cmd + Z` | Hoàn tác thao tác gần nhất (Undo) |

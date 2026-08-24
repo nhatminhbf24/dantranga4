@@ -165,13 +165,20 @@ export async function exportPagesToImage(
     if (onProgress) onProgress(pageIdx + 1, pages.length);
 
     const page = pages[pageIdx];
-    const canvas = document.createElement('canvas');
+    let canvas: HTMLCanvasElement | null = document.createElement('canvas');
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) continue;
+    const ctx = canvas.getContext('2d', { alpha: format === 'png' });
+    if (!ctx) {
+      if (canvas) {
+        canvas.width = 0;
+        canvas.height = 0;
+        canvas = null;
+      }
+      continue;
+    }
 
-    // Background
+    // White background
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
     ctx.imageSmoothingEnabled = true;
@@ -258,9 +265,14 @@ export async function exportPagesToImage(
     link.href = dataUrl;
     link.click();
 
-    // Slight delay for browser download queue if multiple pages
+    // Explicit GPU Canvas Memory disposal
+    canvas.width = 0;
+    canvas.height = 0;
+    canvas = null;
+
+    // Yield control to let GC reclaim memory and browser process download queue
     if (pages.length > 1) {
-      await new Promise((r) => setTimeout(r, 400));
+      await new Promise((r) => setTimeout(r, 300));
     }
   }
 }
@@ -290,15 +302,24 @@ export async function exportPagesToZip(
       onProgress(pageIdx + 1, pages.length);
     }
 
-    const canvas = document.createElement('canvas');
+    let canvas: HTMLCanvasElement | null = document.createElement('canvas');
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) continue;
+    const ctx = canvas.getContext('2d', { alpha: format === 'png' });
+    if (!ctx) {
+      if (canvas) {
+        canvas.width = 0;
+        canvas.height = 0;
+        canvas = null;
+      }
+      continue;
+    }
 
     // Fill white paper background
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     for (const item of page.items) {
       try {
@@ -374,18 +395,34 @@ export async function exportPagesToZip(
     }
 
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, mimeType, 0.98)
+      canvas!.toBlob(resolve, mimeType, 0.98)
     );
 
     if (blob) {
       const pageNumberStr = String(page.pageNumber).padStart(2, '0');
       zip.file(`InAnh_A4_Trang_${pageNumberStr}.${ext}`, blob);
     }
+
+    // Explicit GPU Canvas Memory disposal per page
+    canvas.width = 0;
+    canvas.height = 0;
+    canvas = null;
+
+    // Small yield for memory collection
+    await new Promise((r) => setTimeout(r, 60));
   }
 
-  const zipContent = await zip.generateAsync({ type: 'blob' });
+  const zipContent = await zip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+
+  const blobUrl = URL.createObjectURL(zipContent);
   const link = document.createElement('a');
   link.download = `Bo_Anh_In_A4_${pages.length}_Trang_${Date.now()}.zip`;
-  link.href = URL.createObjectURL(zipContent);
+  link.href = blobUrl;
   link.click();
+
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
 }

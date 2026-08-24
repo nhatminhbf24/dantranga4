@@ -1,4 +1,5 @@
 import { ImageAdjustments, DEFAULT_ADJUSTMENTS } from '../types';
+import { applyAdjustmentsImageDataAsync } from '../workers/workerBridge';
 
 /**
  * Fast pixel-level image adjustments execution on ImageData
@@ -192,12 +193,13 @@ export async function applyAdjustmentsToImage(
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => {
+    img.onload = async () => {
+      let canvas: HTMLCanvasElement | null = null;
       try {
         const width = img.naturalWidth || img.width;
         const height = img.naturalHeight || img.height;
 
-        const canvas = document.createElement('canvas');
+        canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -208,11 +210,23 @@ export async function applyAdjustmentsToImage(
         ctx.drawImage(img, 0, 0, width, height);
         const imgData = ctx.getImageData(0, 0, width, height);
 
-        applyAdjustmentsToImageData(imgData, adjustments);
+        // Offload pixel manipulation to Web Worker
+        const processedData = await applyAdjustmentsImageDataAsync(imgData, adjustments);
 
-        ctx.putImageData(imgData, 0, 0);
-        resolve(canvas.toDataURL('image/jpeg', 0.96));
+        ctx.putImageData(processedData, 0, 0);
+        const resultUrl = canvas.toDataURL('image/jpeg', 0.96);
+
+        // Explicit canvas cleanup
+        canvas.width = 0;
+        canvas.height = 0;
+        canvas = null;
+
+        resolve(resultUrl);
       } catch (e) {
+        if (canvas) {
+          canvas.width = 0;
+          canvas.height = 0;
+        }
         reject(e);
       }
     };

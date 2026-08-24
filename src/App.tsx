@@ -1,19 +1,40 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { PhotoItem, LayoutSettings, ShapeType, SizePreset } from './types';
 import { packImagesToPages } from './utils/packing';
 import { exportPagesToImage, calculateCrop } from './utils/imageUtils';
+import { exportPagesToPdf } from './utils/pdfExport';
+import {
+  saveProjectMeta,
+  syncPhotoBlobs,
+  getSavedSessionMeta,
+  loadSavedSession,
+  clearSavedSession,
+  exportProjectToDaudauFile,
+  importProjectFromDaudauFile,
+  ProjectMetadata,
+} from './utils/projectStorage';
 import { ImageListSidebar } from './components/ImageListSidebar';
 import { BatchToolsSidebar } from './components/BatchToolsSidebar';
 import { SettingsSidebar } from './components/SettingsSidebar';
 import { A4PreviewArea } from './components/A4PreviewArea';
 import { CropModal } from './components/CropModal';
 import { CustomSizeModal } from './components/CustomSizeModal';
+import { RestoreSessionModal } from './components/RestoreSessionModal';
+import { ActivationModal } from './components/ActivationModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { useHistoryState } from './hooks/useHistoryState';
 
 const CUSTOM_PRESETS_STORAGE_KEY = 'dau_dau_custom_size_presets';
 
 export default function App() {
+  // Activation / Lock State (Stored in localStorage)
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('daudau_unlocked') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const {
     state: photos,
     set: setPhotos,
@@ -38,6 +59,10 @@ export default function App() {
     photo: PhotoItem;
     initialTab?: 'crop' | 'adjust';
   } | null>(null);
+
+  // Restore Session Modal State
+  const [pendingRestoreMeta, setPendingRestoreMeta] = useState<ProjectMetadata | null>(null);
+  const [isAutoSaved, setIsAutoSaved] = useState<boolean>(false);
 
   // Custom Size Presets & Modal State
   const [customPresets, setCustomPresets] = useState<SizePreset[]>(() => {
@@ -84,6 +109,159 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // =========================================================================
+  // LỚP 1: Chống tắt tab / tải lại trang đột ngột (beforeunload)
+  // =========================================================================
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (photos.length > 0) {
+        e.preventDefault();
+        e.returnValue = 'Bạn có dự án in chưa hoàn tất. Bạn có chắc chắn muốn rời khỏi trang không?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [photos.length]);
+
+  // =========================================================================
+  // LỚP 2: Tự động lưu ngầm vào IndexedDB (Debounced 500ms) & Kiểm tra khôi phục
+  // =========================================================================
+  // 1. Kiểm tra session cũ khi load ứng dụng lần đầu
+  const hasCheckedSessionRef = useRef(false);
+  useEffect(() => {
+    if (hasCheckedSessionRef.current) return;
+    hasCheckedSessionRef.current = true;
+
+    async function checkPreviousSession() {
+      try {
+        const meta = await getSavedSessionMeta();
+        if (meta && meta.photosMeta && meta.photosMeta.length > 0) {
+          setPendingRestoreMeta(meta);
+        }
+      } catch (e) {
+        console.warn('Error checking existing session:', e);
+      }
+    }
+    checkPreviousSession();
+  }, []);
+
+  // 2. Debounce lưu project_meta sau mỗi thao tác (500ms)
+  const saveTimeoutRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (photos.length === 0) {
+      setIsAutoSaved(false);
+      return;
+    }
+
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = window.setTimeout(async () => {
+      await saveProjectMeta(photos, settings, customPresets);
+      setIsAutoSaved(true);
+    }, 500);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        window.clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [photos, settings, customPresets]);
+
+  // 3. Đồng bộ blobs (chỉ khi số lượng ảnh hoặc id ảnh thay đổi)
+  const previousPhotoIdsRef = useRef<string>('');
+  useEffect(() => {
+    const currentPhotoIds = photos.map((p) => p.id).join(',');
+    if (currentPhotoIds !== previousPhotoIdsRef.current) {
+      previousPhotoIdsRef.current = currentPhotoIds;
+      if (photos.length > 0) {
+        syncPhotoBlobs(photos);
+      } else {
+        clearSavedSession();
+      }
+    }
+  }, [photos]);
+
+  // Khôi phục session từ IndexedDB
+  const handleRestoreSession = useCallback(async () => {
+    try {
+      addToast('info', 'Đang khôi phục dự án cũ...');
+      const session = await loadSavedSession();
+      if (session && session.photos.length > 0) {
+        setPhotos(session.photos);
+        setSettings(session.settings);
+        if (session.customPresets && session.customPresets.length > 0) {
+          setCustomPresets(session.customPresets);
+        }
+        addToast('success', `Đã khôi phục thành công dự án (${session.photos.length} bức ảnh)!`);
+      } else {
+        addToast('error', 'Không thể nạp dữ liệu ảnh từ phiên cũ.');
+      }
+    } catch (err) {
+      console.error('Failed to restore session:', err);
+      addToast('error', 'Có lỗi khi khôi phục dự án.');
+    } finally {
+      setPendingRestoreMeta(null);
+    }
+  }, [addToast, setPhotos]);
+
+  // Bỏ qua session cũ và bắt đầu mới
+  const handleDiscardSession = useCallback(async () => {
+    await clearSavedSession();
+    setPendingRestoreMeta(null);
+    addToast('info', 'Đã khởi tạo dự án mới trống');
+  }, [addToast]);
+
+  // =========================================================================
+  // LỚP 3: Xuất / Nhập file dự án .daudau (Lưu thủ công & Chuyển đổi máy)
+  // =========================================================================
+  const handleExportProject = useCallback(async () => {
+    if (photos.length === 0) {
+      addToast('error', 'Chưa có ảnh nào trong dự án để xuất file .daudau!');
+      return;
+    }
+
+    try {
+      addToast('info', 'Đang đóng gói file dự án .daudau...');
+      await exportProjectToDaudauFile(photos, settings, customPresets, 'Du_An_DauDau');
+      addToast('success', 'Đã lưu file dự án .daudau thành công! Bạn có thể lưu vào USB hoặc gửi tiệm in.');
+    } catch (err) {
+      console.error('Error exporting project:', err);
+      addToast('error', 'Có lỗi khi đóng gói file dự án.');
+    }
+  }, [photos, settings, customPresets, addToast]);
+
+  const handleImportProject = useCallback(
+    async (file: File) => {
+      try {
+        addToast('info', `Đang giải nén & nạp dự án "${file.name}"...`);
+        const projectData = await importProjectFromDaudauFile(file);
+
+        if (!projectData.photos || projectData.photos.length === 0) {
+          addToast('error', 'Tệp dự án không chứa hình ảnh hợp lệ.');
+          return;
+        }
+
+        setPhotos(projectData.photos);
+        if (projectData.settings) {
+          setSettings(projectData.settings);
+        }
+        if (projectData.customPresets && projectData.customPresets.length > 0) {
+          setCustomPresets(projectData.customPresets);
+        }
+
+        addToast('success', `Đã nạp thành công dự án "${projectData.name}" (${projectData.photos.length} ảnh)!`);
+      } catch (err: any) {
+        console.error('Error importing project:', err);
+        addToast('error', err?.message || 'Có lỗi xảy ra khi đọc file dự án.');
+      }
+    },
+    [addToast, setPhotos]
+  );
+
   // Keyboard shortcut support for Undo (Ctrl+Z) and Redo (Ctrl+Y, Ctrl+Shift+Z)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -122,13 +300,17 @@ export default function App() {
             handleRedo();
             addToast('info', 'Làm lại bước tiếp theo');
           }
+        } else if (e.key === 's' || e.key === 'S') {
+          // Quick save project: Ctrl+S
+          e.preventDefault();
+          handleExportProject();
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canUndo, canRedo, handleUndo, handleRedo, addToast]);
+  }, [canUndo, canRedo, handleUndo, handleRedo, handleExportProject, addToast]);
 
   const onUndoWithToast = useCallback(() => {
     if (canUndo) {
@@ -159,9 +341,11 @@ export default function App() {
     addToast('info', 'Đã xóa ảnh');
   }, [setPhotos, addToast]);
 
-  const handleClearAll = useCallback(() => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ ảnh?')) {
+  const handleClearAll = useCallback(async () => {
+    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ ảnh trong dự án?')) {
       setPhotos([]);
+      await clearSavedSession();
+      setIsAutoSaved(false);
       addToast('info', 'Đã xóa toàn bộ ảnh');
     }
   }, [setPhotos, addToast]);
@@ -242,6 +426,30 @@ export default function App() {
     [photos.length, packedPages, settings, addToast]
   );
 
+  const handleExportPdf = useCallback(async () => {
+    if (photos.length === 0) {
+      addToast('error', 'Chưa có ảnh nào để xuất file PDF!');
+      return;
+    }
+
+    setIsExporting(true);
+    setExportProgress({ current: 1, total: packedPages.length });
+    addToast('info', `Đang kết xuất PDF ${packedPages.length} trang chuẩn in ấn 300 DPI...`);
+
+    try {
+      await exportPagesToPdf(packedPages, settings, (current, total) => {
+        setExportProgress({ current, total });
+      });
+      addToast('success', `Đã xuất file PDF (${packedPages.length} trang) chuẩn in ấn thành công!`);
+    } catch (err) {
+      console.error('Error exporting PDF:', err);
+      addToast('error', 'Có lỗi xảy ra khi tạo file PDF.');
+    } finally {
+      setIsExporting(false);
+      setExportProgress(null);
+    }
+  }, [photos.length, packedPages, settings, addToast]);
+
   const handleSaveCustomPreset = useCallback((preset: SizePreset) => {
     setCustomPresets((prev) => {
       // If already exists with same dimensions and shape, replace it
@@ -319,6 +527,16 @@ export default function App() {
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
+      {/* Restore Session Modal (Auto-save recovery) */}
+      {pendingRestoreMeta && (
+        <RestoreSessionModal
+          isOpen={Boolean(pendingRestoreMeta)}
+          meta={pendingRestoreMeta}
+          onRestore={handleRestoreSession}
+          onDiscard={handleDiscardSession}
+        />
+      )}
+
       {/* Column 1: Image List Sidebar (Left) */}
       <ImageListSidebar
         photos={photos}
@@ -352,6 +570,11 @@ export default function App() {
         onAddPhotos={handleAddPhotos}
         onPrint={handlePrint}
         onExport={handleExport}
+        onExportPdf={handleExportPdf}
+        onExportProject={handleExportProject}
+        onImportProject={handleImportProject}
+        onClearAllPhotos={handleClearAll}
+        isAutoSaved={isAutoSaved}
         isExporting={isExporting}
         exportProgress={exportProgress}
         onToast={addToast}
@@ -397,6 +620,11 @@ export default function App() {
           onApplyPresetToPhoto={(id, preset) => handleApplyPresetToPhoto(id, preset)}
           onApplyPresetToAll={(preset) => handleApplyPresetToAll(preset)}
         />
+      )}
+
+      {/* Lock / Activation Modal (0798408406) */}
+      {!isUnlocked && (
+        <ActivationModal onUnlock={() => setIsUnlocked(true)} />
       )}
     </div>
   );

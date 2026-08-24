@@ -77,11 +77,12 @@ function packShelf(
 }
 
 /**
- * Maximal Rectangles 2D Guillotine Bin Packing (Auto Nesting / Best-Fit)
- * GIỮ NGUYÊN 100% KÍCH THƯỚC ĐÃ CÀI ĐẶT (KHÔNG XOAY / KHÔNG HOÁN ĐỔI W/H).
- * Chỉ tìm tọa độ (X, Y) và khoảng trống thích hợp nhất để ghép khít các bức ảnh khác kích thước lại với nhau.
+ * Guillotine 2D Bin Packing with Straight-Cut Priority (Shorter Axis Split Rule - SASR & Best Short Side Fit)
+ * Tối ưu diện tích in và tạo ra các đường cắt thẳng tắp từ cạnh này sang cạnh kia của giấy (Guillotine Cuts),
+ * giúp người dùng dễ dàng dùng dao rọc giấy/bàn cắt rọc thẳng 1 đường mà không bị góc ziczac.
+ * GIỮ NGUYÊN 100% KÍCH THƯỚC W x H ĐÃ CÀI ĐẶT.
  */
-function packMaximalRectanglesNesting(
+function packGuillotineStraightCut(
   items: ItemToPack[],
   usableWidth: number,
   usableHeight: number,
@@ -93,27 +94,26 @@ function packMaximalRectanglesNesting(
 
   while (remaining.length > 0) {
     const pageItems: PlacedPhotoItem[] = [];
-    let freeRects: FreeRect[] = [
-      { x: 0, y: 0, w: usableWidth, h: usableHeight },
-    ];
+    let freeRects: FreeRect[] = [{ x: 0, y: 0, w: usableWidth, h: usableHeight }];
 
     let itemPlaced = true;
     while (itemPlaced && remaining.length > 0) {
       itemPlaced = false;
       let bestItemIndex = -1;
       let bestRectIndex = -1;
-      let bestScore = Number.MAX_VALUE; // Best Short Side Fit + top-left heuristic
+      let bestScore = Number.MAX_VALUE;
 
       for (let i = 0; i < remaining.length; i++) {
         const item = remaining[i];
 
         for (let r = 0; r < freeRects.length; r++) {
           const rect = freeRects[r];
-          // Giữ nguyên 100% item.w và item.h đã cài đặt, không xoay đổi chiều
+          // Check if item fits in rect without rotation
           if (item.w <= rect.w && item.h <= rect.h) {
             const leftoverW = rect.w - item.w;
             const leftoverH = rect.h - item.h;
             const shortSideFit = Math.min(leftoverW, leftoverH);
+            // Heuristic: Prefer top-left reading order + tightest fit
             const score = rect.y * 10000 + rect.x * 100 + shortSideFit;
 
             if (score < bestScore) {
@@ -140,63 +140,63 @@ function packMaximalRectanglesNesting(
           h: finalH,
         });
 
-        // Split the chosen free rectangle (Guillotine cut: Leftover Right & Leftover Bottom)
+        // Split free rectangle using Guillotine Straight-Cut Rule (Shorter Axis Split)
         const occupiedW = finalW + gap;
         const occupiedH = finalH + gap;
+        const wRem = freeRect.w - occupiedW;
+        const hRem = freeRect.h - occupiedH;
 
         const newRects: FreeRect[] = [];
+
+        // Remove the consumed free rect and replace with split pieces
         for (let r = 0; r < freeRects.length; r++) {
           if (r === bestRectIndex) {
-            // Right split
-            if (freeRect.w - occupiedW > 0) {
-              newRects.push({
-                x: freeRect.x + occupiedW,
-                y: freeRect.y,
-                w: freeRect.w - occupiedW,
-                h: finalH,
-              });
-            }
-            // Bottom split
-            if (freeRect.h - occupiedH > 0) {
-              newRects.push({
-                x: freeRect.x,
-                y: freeRect.y + occupiedH,
-                w: freeRect.w,
-                h: freeRect.h - occupiedH,
-              });
-            }
-          } else {
-            // Check intersection with other free rects
-            const rect = freeRects[r];
-            const overlapX = Math.max(0, Math.min(rect.x + rect.w, freeRect.x + occupiedW) - Math.max(rect.x, freeRect.x));
-            const overlapY = Math.max(0, Math.min(rect.y + rect.h, freeRect.y + occupiedH) - Math.max(rect.y, freeRect.y));
-
-            if (overlapX > 0 && overlapY > 0) {
-              // Subdivide overlapped rect into non-overlapping pieces
-              if (freeRect.x + occupiedW < rect.x + rect.w) {
+            // Choose straight split axis based on shorter residual axis to maximize clean lines
+            if (wRem <= hRem) {
+              // Split horizontally across the width
+              if (wRem > 0) {
                 newRects.push({
                   x: freeRect.x + occupiedW,
-                  y: rect.y,
-                  w: rect.x + rect.w - (freeRect.x + occupiedW),
-                  h: rect.h,
+                  y: freeRect.y,
+                  w: wRem,
+                  h: finalH,
                 });
               }
-              if (freeRect.y + occupiedH < rect.y + rect.h) {
+              if (hRem > 0) {
                 newRects.push({
-                  x: rect.x,
+                  x: freeRect.x,
                   y: freeRect.y + occupiedH,
-                  w: rect.w,
-                  h: rect.y + rect.h - (freeRect.y + occupiedH),
+                  w: freeRect.w,
+                  h: hRem,
                 });
               }
             } else {
-              newRects.push(rect);
+              // Split vertically down the height
+              if (wRem > 0) {
+                newRects.push({
+                  x: freeRect.x + occupiedW,
+                  y: freeRect.y,
+                  w: wRem,
+                  h: freeRect.h,
+                });
+              }
+              if (hRem > 0) {
+                newRects.push({
+                  x: freeRect.x,
+                  y: freeRect.y + occupiedH,
+                  w: finalW,
+                  h: hRem,
+                });
+              }
             }
+          } else {
+            // Keep other unaffected free rects
+            newRects.push(freeRects[r]);
           }
         }
 
-        // Clean up redundant / tiny / enclosed rects
-        freeRects = newRects.filter((r) => r.w >= 10 && r.h >= 10);
+        // Clean up redundant / tiny / enclosed rects (min 5mm to be usable)
+        freeRects = newRects.filter((r) => r.w >= 5 && r.h >= 5);
         itemPlaced = true;
       }
     }
@@ -266,11 +266,11 @@ export function packImagesToPages(
     }
   });
 
-  // Chỉ bật Nesting khi người dùng chủ động bật (settings.autoNesting === true)
+  // Khi bật Nesting: Dùng thuật toán Guillotine Bin Packing ưu tiên đường cắt thẳng & diện tích tối đa
   if (settings.autoNesting === true) {
-    // Sort items by area and larger dimension descending for best packing efficiency (giữ nguyên W x H)
+    // Sắp xếp giảm dần theo diện tích và kích thước lớn để tối ưu lấp đầy
     itemsToPack.sort((a, b) => b.area - a.area || Math.max(b.w, b.h) - Math.max(a.w, a.h));
-    return packMaximalRectanglesNesting(itemsToPack, usableWidth, usableHeight, margin, gap);
+    return packGuillotineStraightCut(itemsToPack, usableWidth, usableHeight, margin, gap);
   }
 
   // Mặc định: Xếp tuần tự tự nhiên (Standard Shelf Packing) theo thứ tự ảnh

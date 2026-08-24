@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   Printer,
   Download,
@@ -11,9 +11,13 @@ import {
   Maximize2,
   FileImage,
   LayoutGrid,
-  Archive,
+  FileText,
+  Save,
+  FolderOpen,
+  Trash2,
   ChevronLeft,
   ChevronRight,
+  CheckCircle2,
 } from 'lucide-react';
 import { LayoutSettings, ShapeType, SizePreset } from '../types';
 import { Uploader } from './Uploader';
@@ -27,7 +31,11 @@ interface SettingsSidebarProps {
   onAddPhotos: (photos: PhotoItem[]) => void;
   onPrint: () => void;
   onExport: (format: 'png' | 'jpeg') => void;
-  onExportZip?: () => void;
+  onExportPdf?: () => void;
+  onExportProject?: () => void;
+  onImportProject?: (file: File) => void;
+  onClearAllPhotos?: () => void;
+  isAutoSaved?: boolean;
   isExporting: boolean;
   exportProgress: { current: number; total: number } | null;
   onToast: (type: 'success' | 'error' | 'info', text: string) => void;
@@ -45,7 +53,11 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   onAddPhotos,
   onPrint,
   onExport,
-  onExportZip,
+  onExportPdf,
+  onExportProject,
+  onImportProject,
+  onClearAllPhotos,
+  isAutoSaved = false,
   isExporting,
   exportProgress,
   onToast,
@@ -54,6 +66,18 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   isCollapsed = false,
   onToggleCollapse,
 }) => {
+  const projectInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleProjectFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onImportProject) {
+      onImportProject(file);
+    }
+    if (e.target) {
+      e.target.value = '';
+    }
+  };
+
   return (
     <aside
       id="sidebar"
@@ -72,7 +96,14 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
               <h1 className="text-[15px] font-black text-pink-700 leading-snug tracking-tight whitespace-nowrap">
                 Dâu Dâu AutoPack
               </h1>
-              <p className="text-[10.5px] text-pink-600/85 font-semibold">Dàn trang in ảnh A4 thông minh</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <p className="text-[10.5px] text-pink-600/85 font-semibold">Dàn trang in ảnh A4</p>
+                {isAutoSaved && totalPhotos > 0 && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded text-[9.5px] font-medium animate-fadeIn">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Đã tự lưu
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -225,6 +256,68 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
               />
             </label>
           </div>
+
+          {/* 3. Dự án & Tệp tin (.daudau session) */}
+          <div className="bg-amber-50/60 rounded-xl p-3.5 border border-amber-200/90 shadow-2xs space-y-2.5">
+            <div className="flex items-center justify-between text-amber-950 font-bold">
+              <div className="flex items-center gap-1.5">
+                <Save className="w-4 h-4 text-amber-600" />
+                <h2 className="text-xs uppercase tracking-wide">Dự án (.daudau)</h2>
+              </div>
+              {isAutoSaved && totalPhotos > 0 && (
+                <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Tự lưu ngầm
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                id="btn-export-daudau"
+                onClick={onExportProject}
+                disabled={totalPhotos === 0 || isExporting}
+                className="flex items-center justify-center gap-1.5 bg-white hover:bg-amber-100/70 disabled:opacity-50 text-amber-950 border border-amber-300 font-bold py-2 px-2 rounded-xl text-xs transition shadow-2xs cursor-pointer active:scale-95"
+                title="Xuất file dự án (.daudau) lưu sang USB hoặc gửi cho người khác"
+              >
+                <Save className="w-3.5 h-3.5 text-amber-700" />
+                <span>Lưu .daudau</span>
+              </button>
+
+              <button
+                type="button"
+                id="btn-import-daudau"
+                onClick={() => projectInputRef.current?.click()}
+                disabled={isExporting}
+                className="flex items-center justify-center gap-1.5 bg-white hover:bg-amber-100/70 disabled:opacity-50 text-amber-950 border border-amber-300 font-bold py-2 px-2 rounded-xl text-xs transition shadow-2xs cursor-pointer active:scale-95"
+                title="Mở file dự án (.daudau hoặc .zip) để nạp lại toàn bộ trạng thái"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-amber-700" />
+                <span>Mở dự án</span>
+              </button>
+            </div>
+
+            {/* Hidden file input for .daudau */}
+            <input
+              type="file"
+              ref={projectInputRef}
+              accept=".daudau,.zip"
+              className="hidden"
+              onChange={handleProjectFileChange}
+            />
+
+            {totalPhotos > 0 && onClearAllPhotos && (
+              <button
+                type="button"
+                id="btn-clear-project"
+                onClick={onClearAllPhotos}
+                className="w-full flex items-center justify-center gap-1 text-[11px] text-rose-600 hover:text-rose-700 hover:bg-rose-50/70 py-1 rounded-lg transition cursor-pointer font-semibold border border-transparent hover:border-rose-200"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Xóa làm mới toàn bộ</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -273,17 +366,18 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
             </button>
           </div>
 
-          {/* ZIP Batch Export Button */}
-          {onExportZip && (
+          {/* PDF Multi-page Export Button */}
+          {onExportPdf && (
             <button
               type="button"
-              id="btn-export-zip"
-              onClick={onExportZip}
+              id="btn-export-pdf"
+              onClick={onExportPdf}
               disabled={totalPhotos === 0 || isExporting}
-              className="w-full flex items-center justify-center gap-1.5 bg-amber-50 hover:bg-amber-100 disabled:opacity-50 text-amber-900 border border-amber-300 font-bold py-1.5 rounded-xl text-xs transition shadow-2xs active:scale-95 cursor-pointer"
+              className="w-full flex items-center justify-center gap-1.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 disabled:opacity-50 text-white font-bold py-2 rounded-xl text-xs transition shadow-sm shadow-red-500/20 active:scale-95 cursor-pointer"
+              title="Xuất file PDF nhiều trang độ nét cao 300 DPI chuẩn in ấn"
             >
-              <Archive className="w-3.5 h-3.5 text-amber-700" />
-              <span>Tải trọn bộ ZIP ({pageCount} trang)</span>
+              <FileText className="w-3.5 h-3.5" />
+              <span>Xuất file PDF in ấn ({pageCount} trang)</span>
             </button>
           )}
         </div>

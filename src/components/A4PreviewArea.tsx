@@ -384,6 +384,12 @@ export const A4PreviewArea: React.FC<A4PreviewAreaProps> = ({
             </li>
             <li className="flex items-start gap-2">
               <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-slate-800 shrink-0">
+                Ctrl + S
+              </span>
+              <span>Lưu dự án .daudau đóng gói mang đi (USB/Zalo/Tiệm in)</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-slate-800 shrink-0">
                 Ctrl + P
               </span>
               <span>Mở hộp thoại in ấn tiêu chuẩn A4</span>

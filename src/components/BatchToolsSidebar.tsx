@@ -398,7 +398,21 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
             </button>
           </div>
 
-          {/* CỤM 2: SỐ LƯỢNG IN HÀNG LOẠT (Pastel Emerald) */}
+          {/* CỤM 2: XOAY & ĐỊNH HƯỚNG (Pastel Indigo) - ĐƯỢC ĐƯA LÊN TRÊN SỐ LƯỢNG */}
+          <div className="bg-indigo-50/70 rounded-xl p-3.5 border border-indigo-200/90 shadow-2xs space-y-2 transition hover:border-indigo-300">
+            <button
+              type="button"
+              id="btn-rotate-all"
+              onClick={handleRotateAll}
+              disabled={photos.length === 0}
+              className="w-full flex items-center justify-center gap-1.5 bg-white hover:bg-indigo-100 disabled:opacity-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold transition active:scale-95 border border-indigo-300 cursor-pointer shadow-2xs"
+            >
+              <RotateCw className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Xoay tất cả ảnh 90°</span>
+            </button>
+          </div>
+
+          {/* CỤM 3: SỐ LƯỢNG IN HÀNG LOẠT (Pastel Emerald) */}
           <div className="bg-emerald-50/70 rounded-xl p-3.5 border border-emerald-200/90 shadow-2xs space-y-2.5 transition hover:border-emerald-300">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-emerald-950 font-bold">
@@ -493,7 +507,7 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
             </div>
           </div>
 
-          {/* CỤM 3: TỰ ĐỘNG CÂN CHỈNH MÀU SẮC & ÁNH SÁNG (Pastel Purple) */}
+          {/* CỤM 4: TỰ ĐỘNG CÂN CHỈNH MÀU SẮC & ÁNH SÁNG (Pastel Purple) */}
           <div className="bg-purple-50/70 rounded-xl p-3.5 border border-purple-200/90 shadow-2xs space-y-2.5 transition hover:border-purple-300">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-purple-950 font-bold">
@@ -535,7 +549,7 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
             </button>
           </div>
 
-          {/* CỤM 4: CHẤT LƯỢNG & ĐỘ NÉT (LÀM NÉT & PHỤC HỒI) (Pastel Amber) */}
+          {/* CỤM 5: CHẤT LƯỢNG & ĐỘ NÉT (LÀM NÉT & PHỤC HỒI) (Pastel Amber) */}
           <div className="bg-amber-50/70 rounded-xl p-3.5 border border-amber-200/90 shadow-2xs space-y-2.5 transition hover:border-amber-300">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-amber-950 font-bold">
@@ -572,7 +586,7 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
             <div className="bg-white border border-amber-200 rounded-lg p-2.5 space-y-1.5">
               <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
                 <span className="flex items-center gap-1 text-amber-900 font-bold">
-                  <Sparkles className="w-3 h-3 text-amber-500" />
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                   <span>Mức độ làm nét:</span>
                 </span>
                 <span className="font-bold text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded text-[10px]">
@@ -608,20 +622,6 @@ export const BatchToolsSidebar: React.FC<BatchToolsSidebarProps> = ({
             >
               <Undo2 className="w-3.5 h-3.5 text-amber-700" />
               <span>Khôi phục ảnh gốc TẤT CẢ {enhancedCount > 0 ? `(${enhancedCount})` : ''}</span>
-            </button>
-          </div>
-
-          {/* CỤM 5: XOAY & ĐỊNH HƯỚNG (Pastel Indigo) */}
-          <div className="bg-indigo-50/70 rounded-xl p-3.5 border border-indigo-200/90 shadow-2xs space-y-2 transition hover:border-indigo-300">
-            <button
-              type="button"
-              id="btn-rotate-all"
-              onClick={handleRotateAll}
-              disabled={photos.length === 0}
-              className="w-full flex items-center justify-center gap-1.5 bg-white hover:bg-indigo-100 disabled:opacity-50 text-indigo-700 px-3 py-2 rounded-lg text-xs font-bold transition active:scale-95 border border-indigo-300 cursor-pointer shadow-2xs"
-            >
-              <RotateCw className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Xoay tất cả ảnh 90°</span>
             </button>
           </div>
         </div>
