@@ -54,7 +54,7 @@ export const ActivationModal: React.FC<ActivationModalProps> = ({ onUnlock }) =>
               Kích Hoạt Dâu Dâu AutoPack
             </h2>
             <p className="text-xs text-slate-500 mt-1 font-medium leading-relaxed">
-              Hệ thống yêu cầu mã xác thực truy cập nội bộ để bảo mật không gian in ấn của bạn.
+              Cánh cổng bước vào không gian sáng tạo độc quyền cùng Dâu Dâu
             </p>
           </div>
         </div>
