@@ -20,6 +20,7 @@ import { A4PreviewArea } from './components/A4PreviewArea';
 import { CropModal } from './components/CropModal';
 import { CustomSizeModal } from './components/CustomSizeModal';
 import { RestoreSessionModal } from './components/RestoreSessionModal';
+import { SaveProjectModal } from './components/SaveProjectModal';
 import { ActivationModal } from './components/ActivationModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { useHistoryState } from './hooks/useHistoryState';
@@ -85,6 +86,7 @@ export default function App() {
     targetPhoto: null,
   });
 
+  const [isSaveProjectModalOpen, setIsSaveProjectModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
 
@@ -218,21 +220,33 @@ export default function App() {
   // =========================================================================
   // LỚP 3: Xuất / Nhập file dự án .daudau (Lưu thủ công & Chuyển đổi máy)
   // =========================================================================
-  const handleExportProject = useCallback(async () => {
+  const handleExportProject = useCallback(() => {
     if (photos.length === 0) {
       addToast('error', 'Chưa có ảnh nào trong dự án để xuất file .daudau!');
       return;
     }
+    setIsSaveProjectModalOpen(true);
+  }, [photos.length, addToast]);
 
-    try {
-      addToast('info', 'Đang đóng gói file dự án .daudau...');
-      await exportProjectToDaudauFile(photos, settings, customPresets, 'Du_An_DauDau');
-      addToast('success', 'Đã lưu file dự án .daudau thành công! Bạn có thể lưu vào USB hoặc gửi tiệm in.');
-    } catch (err) {
-      console.error('Error exporting project:', err);
-      addToast('error', 'Có lỗi khi đóng gói file dự án.');
-    }
-  }, [photos, settings, customPresets, addToast]);
+  const handleConfirmSaveProject = useCallback(
+    async (projectName: string) => {
+      setIsSaveProjectModalOpen(false);
+      if (photos.length === 0) return;
+
+      setIsExporting(true);
+      try {
+        addToast('info', `Đang đóng gói file dự án "${projectName}.daudau"...`);
+        await exportProjectToDaudauFile(photos, settings, customPresets, projectName);
+        addToast('success', `Đã lưu file dự án "${projectName}.daudau" thành công!`);
+      } catch (err) {
+        console.error('Error exporting project:', err);
+        addToast('error', 'Có lỗi khi đóng gói file dự án.');
+      } finally {
+        setIsExporting(false);
+      }
+    },
+    [photos, settings, customPresets, addToast]
+  );
 
   const handleImportProject = useCallback(
     async (file: File) => {
@@ -522,6 +536,18 @@ export default function App() {
     [photos, settings.smartCrop, handleUpdatePhoto, addToast]
   );
 
+  // Global shortcut Ctrl+S / Cmd+S for saving project
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleExportProject();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleExportProject]);
+
   return (
     <div id="app-root" className="flex w-full h-screen overflow-hidden bg-slate-100 text-slate-800 font-sans">
       {/* Toast Notifications */}
@@ -619,6 +645,17 @@ export default function App() {
           onRemoveCustomPreset={handleRemoveCustomPreset}
           onApplyPresetToPhoto={(id, preset) => handleApplyPresetToPhoto(id, preset)}
           onApplyPresetToAll={(preset) => handleApplyPresetToAll(preset)}
+        />
+      )}
+
+      {/* Modal for Saving .daudau Project File with Custom Name */}
+      {isSaveProjectModalOpen && (
+        <SaveProjectModal
+          isOpen={isSaveProjectModalOpen}
+          photoCount={photos.length}
+          pageCount={packedPages.length}
+          onSave={handleConfirmSaveProject}
+          onClose={() => setIsSaveProjectModalOpen(false)}
         />
       )}
 

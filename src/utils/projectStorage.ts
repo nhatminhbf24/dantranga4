@@ -343,8 +343,8 @@ export async function exportProjectToDaudauFile(
 
   const blobUrl = URL.createObjectURL(zipBlob);
   const link = document.createElement('a');
-  const safeName = (projectName || 'Du_An_In_Anh').replace(/[^a-zA-Z0-9_\-]/g, '_');
-  link.download = `${safeName}_${Date.now()}.daudau`;
+  const cleanName = (projectName || 'Du_An_In_Anh').replace(/[\\/:*?"<>|]/g, '_').trim();
+  link.download = cleanName.endsWith('.daudau') ? cleanName : `${cleanName}.daudau`;
   link.href = blobUrl;
   document.body.appendChild(link);
   link.click();
