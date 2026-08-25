@@ -2,13 +2,8 @@ import React, { useRef } from 'react';
 import {
   Printer,
   Download,
-  Sliders,
   Settings2,
-  FileSpreadsheet,
   Scissors,
-  Sparkles,
-  Smartphone,
-  Maximize2,
   FileImage,
   LayoutGrid,
   FileText,
@@ -17,7 +12,6 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
 } from 'lucide-react';
 import { LayoutSettings, ShapeType, SizePreset } from '../types';
 import { Uploader } from './Uploader';
@@ -241,36 +235,10 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
               />
             </label>
-
-            {/* 3. Trọng tâm khuôn mặt */}
-            <label className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-purple-300 cursor-pointer hover:bg-purple-50/60 transition select-none shadow-2xs">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-purple-600" />
-                <span className="text-xs font-bold text-purple-950">Trọng tâm khuôn mặt</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={settings.smartCrop}
-                onChange={(e) => onUpdateSettings({ smartCrop: e.target.checked })}
-                className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 cursor-pointer"
-              />
-            </label>
           </div>
 
           {/* 3. Dự án & Tệp tin (.daudau session) */}
-          <div className="bg-amber-50/60 rounded-xl p-3.5 border border-amber-200/90 shadow-2xs space-y-2.5">
-            <div className="flex items-center justify-between text-amber-950 font-bold">
-              <div className="flex items-center gap-1.5">
-                <Save className="w-4 h-4 text-amber-600" />
-                <h2 className="text-xs uppercase tracking-wide">Dự án (.daudau)</h2>
-              </div>
-              {isAutoSaved && totalPhotos > 0 && (
-                <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Tự lưu ngầm
-                </span>
-              )}
-            </div>
-
+          <div className="bg-amber-50/60 rounded-xl p-2.5 border border-amber-200/90 shadow-2xs space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
